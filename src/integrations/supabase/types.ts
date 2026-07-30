@@ -14,6 +14,109 @@ export type Database = {
   }
   public: {
     Tables: {
+      deal_notes: {
+        Row: {
+          author: string
+          body: string
+          created_at: string
+          deal_id: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          author?: string
+          body?: string
+          created_at?: string
+          deal_id: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          author?: string
+          body?: string
+          created_at?: string
+          deal_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_notes_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deals: {
+        Row: {
+          cold_note: string
+          company_name: string
+          contact_name: string
+          created_at: string
+          email: string
+          followup_at: string | null
+          followup_done: boolean
+          followup_note: string
+          id: string
+          lead_id: string | null
+          phone: string
+          position: number
+          stage: string
+          updated_at: string
+          user_id: string
+          website_url: string
+        }
+        Insert: {
+          cold_note?: string
+          company_name?: string
+          contact_name?: string
+          created_at?: string
+          email?: string
+          followup_at?: string | null
+          followup_done?: boolean
+          followup_note?: string
+          id?: string
+          lead_id?: string | null
+          phone?: string
+          position?: number
+          stage?: string
+          updated_at?: string
+          user_id: string
+          website_url?: string
+        }
+        Update: {
+          cold_note?: string
+          company_name?: string
+          contact_name?: string
+          created_at?: string
+          email?: string
+          followup_at?: string | null
+          followup_done?: boolean
+          followup_note?: string
+          id?: string
+          lead_id?: string | null
+          phone?: string
+          position?: number
+          stage?: string
+          updated_at?: string
+          user_id?: string
+          website_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           call_answered: boolean
