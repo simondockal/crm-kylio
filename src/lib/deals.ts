@@ -105,6 +105,40 @@ export function isDueOrOverdue(iso: string | null): boolean {
 
 export const DEALS_CHANGED = "kylio:deals-changed";
 
+export const DEFAULT_HOST = {
+  name: "Šimon Dočkal",
+  email: "simon.dockal@kylio.cz",
+};
+
+export function meetingCalendarUrl(input: {
+  company_name: string;
+  contact_name: string;
+  phone: string;
+  website_url: string;
+  note: string;
+  startIso: string;
+  endIso: string;
+  guests: string[];
+}) {
+  const who = input.company_name?.trim() || input.contact_name?.trim() || "kontakt";
+  const details = [
+    input.note?.trim() ? `Poznámky z cold callu:\n${input.note.trim()}` : null,
+    input.contact_name?.trim() ? `Kontakt: ${input.contact_name.trim()}` : null,
+    input.phone?.trim() ? `Telefon: ${input.phone.trim()}` : null,
+    input.website_url?.trim() ? `Web: ${input.website_url.trim()}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `Schůzka: ${who}`,
+    dates: `${toGoogleDate(new Date(input.startIso))}/${toGoogleDate(new Date(input.endIso))}`,
+    details,
+  });
+  input.guests.filter(Boolean).forEach((g) => params.append("add", g));
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 export function notifyDealsChanged() {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(DEALS_CHANGED));
 }
