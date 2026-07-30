@@ -31,7 +31,16 @@ import {
 } from "@/lib/deals";
 import { fromLocalInputValue, toLocalInputValue } from "@/lib/leads";
 
-const FIELDS: { key: keyof Deal; label: string }[] = [
+type StringField =
+  | "company_name"
+  | "contact_name"
+  | "phone"
+  | "email"
+  | "website_url"
+  | "cold_note"
+  | "followup_note";
+
+const FIELDS: { key: StringField; label: string }[] = [
   { key: "company_name", label: "Název firmy" },
   { key: "contact_name", label: "Kontaktní osoba" },
   { key: "phone", label: "Telefon" },
@@ -75,13 +84,14 @@ export function DealDrawer({
 
   if (!deal) return null;
 
-  const patchField = (key: keyof Deal, value: string) => {
-    onPatch(deal.id, { [key]: value } as Partial<Deal>);
-    clearTimeout(timers.current[key as string]);
-    timers.current[key as string] = setTimeout(async () => {
+  const patchField = (key: StringField, value: string) => {
+    const patch = { [key]: value } as Partial<Deal>;
+    onPatch(deal.id, patch);
+    clearTimeout(timers.current[key]);
+    timers.current[key] = setTimeout(async () => {
       const { error } = await supabase
         .from("deals")
-        .update({ [key]: value })
+        .update(patch)
         .eq("id", deal.id);
       if (error) toast.error("Uložení se nezdařilo.");
     }, 450);
@@ -164,7 +174,7 @@ export function DealDrawer({
                 <Label className="text-xs">{f.label}</Label>
                 <Input
                   className="h-9"
-                  value={(deal[f.key] as string) ?? ""}
+                  value={deal[f.key] ?? ""}
                   onChange={(e) => patchField(f.key, e.target.value)}
                 />
               </div>
