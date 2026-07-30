@@ -132,7 +132,6 @@ export function LeadsGrid({
                 }}
               >
                 <SelectTrigger
-                  size="sm"
                   className={cn(
                     "h-7 w-full border-0 bg-transparent text-xs font-medium shadow-none focus-visible:ring-1",
                     STATUS_CLASS[lead.status],
