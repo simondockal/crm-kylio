@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AppShell } from "@/components/crm/app-shell";
 import { DealDrawer } from "@/components/crm/deal-drawer";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   DEALS_CHANGED,
   STAGES,
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
 });
 
 function PipelinePage() {
+  const { loading: roleLoading, isAdmin } = useCurrentUser();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -108,6 +110,19 @@ function PipelinePage() {
   }, [deals, search]);
 
   const openDeal = deals.find((d) => d.id === openDealId) ?? null;
+
+  if (!roleLoading && !isAdmin) {
+    return (
+      <AppShell>
+        <div className="mx-auto mt-16 max-w-md rounded-xl border border-border bg-surface p-6 text-center">
+          <h1 className="font-display text-lg font-semibold">Nemáte přístup</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Sales Pipeline je dostupná pouze pro roli Admin.
+          </p>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell
