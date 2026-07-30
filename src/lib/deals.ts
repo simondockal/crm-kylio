@@ -107,7 +107,7 @@ export const DEALS_CHANGED = "kylio:deals-changed";
 
 export const DEFAULT_HOST = {
   name: "Šimon Dočkal",
-  email: "simon.dockal@kylio.cz",
+  email: "dockal.digital@gmail.com",
 };
 
 export function meetingCalendarUrl(input: {
@@ -131,7 +131,7 @@ export function meetingCalendarUrl(input: {
     .join("\n");
   const params = new URLSearchParams({
     action: "TEMPLATE",
-    text: `Schůzka: ${who}`,
+    text: `Ukázka nové webové stránky (${who})`,
     dates: `${toGoogleDate(new Date(input.startIso))}/${toGoogleDate(new Date(input.endIso))}`,
     details,
   });
