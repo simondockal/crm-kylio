@@ -3,6 +3,17 @@ import { CalendarClock, Maximize2, Trash2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -25,7 +36,7 @@ import {
   type LeadStatus,
 } from "@/lib/leads";
 
-const COLUMNS = "44px 230px 190px 180px 150px 210px 96px 180px 280px 170px 44px";
+const COLUMNS = "76px 230px 190px 180px 150px 210px 96px 180px 280px 170px 44px";
 
 const TEXT_COLS: { key: LeadField; placeholder: string; mono?: boolean }[] = [
   { key: "company_name", placeholder: "Název firmy" },
@@ -50,10 +61,23 @@ export function LeadsGrid({
 }: {
   leads: Lead[];
   onPatch: (id: string, patch: Partial<Lead>) => void;
-  onDelete: (id: string) => void;
+  onDelete: (ids: string[]) => void;
   onRequestFollowup: (lead: Lead) => void;
 }) {
   const [noteLead, setNoteLead] = useState<Lead | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
+
+  const allSelected = leads.length > 0 && selected.length === leads.length;
+  const toggle = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return;
+    onDelete(pendingDelete);
+    setSelected((prev) => prev.filter((id) => !pendingDelete.includes(id)));
+    setPendingDelete(null);
+  };
 
   const focusCell = (row: number, col: number) => {
     const el = document.querySelector<HTMLInputElement>(
@@ -64,13 +88,39 @@ export function LeadsGrid({
   };
 
   return (
+    <>
+    {selected.length > 0 ? (
+      <div className="mb-2 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+        <span className="font-medium">Vybráno {selected.length}</span>
+        <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
+          Zrušit výběr
+        </Button>
+        <Button
+          size="sm"
+          variant="destructive"
+          className="ml-auto"
+          onClick={() => setPendingDelete(selected)}
+        >
+          <Trash2 className="size-4" />
+          Smazat vybrané
+        </Button>
+      </div>
+    ) : null}
     <div className="scroll-slim overflow-x-auto rounded-xl border border-border bg-surface">
       <div className="min-w-max">
         <div
           className="grid border-b border-grid-line bg-surface-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
           style={{ gridTemplateColumns: COLUMNS }}
         >
-          {["#", "Firma", "Web", "Kontakt", "Telefon", "E-mail", "Dovolal", "Stav", "Poznámka", "Follow-up", ""].map(
+          <div className="flex items-center gap-2 px-2.5 py-2.5">
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={(v) => setSelected(v ? leads.map((l) => l.id) : [])}
+              aria-label="Vybrat vše"
+            />
+            <span>#</span>
+          </div>
+          {["Firma", "Web", "Kontakt", "Telefon", "E-mail", "Dovolal", "Stav", "Poznámka", "Follow-up", ""].map(
             (h, i) => (
               <div key={i} className="truncate px-2.5 py-2.5">
                 {h}
@@ -85,7 +135,12 @@ export function LeadsGrid({
             className="group grid items-center border-b border-grid-line last:border-b-0 hover:bg-surface-2/60"
             style={{ gridTemplateColumns: COLUMNS }}
           >
-            <div className="px-2.5 font-mono text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-2 px-2.5 font-mono text-[11px] text-muted-foreground">
+              <Checkbox
+                checked={selected.includes(lead.id)}
+                onCheckedChange={() => toggle(lead.id)}
+                aria-label="Vybrat řádek"
+              />
               {rowIndex + 1}
             </div>
 
@@ -187,7 +242,7 @@ export function LeadsGrid({
 
             <button
               type="button"
-              onClick={() => onDelete(lead.id)}
+              onClick={() => setPendingDelete([lead.id])}
               className="flex h-9 items-center justify-center text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
               aria-label="Smazat řádek"
             >
@@ -224,5 +279,23 @@ export function LeadsGrid({
         </DialogContent>
       </Dialog>
     </div>
+
+    <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            Smazat {pendingDelete?.length === 1 ? "kontakt" : `${pendingDelete?.length ?? 0} kontaktů`}?
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            Tuto akci nelze vrátit zpět. Data budou trvale odstraněna.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Zrušit</AlertDialogCancel>
+          <AlertDialogAction onClick={confirmDelete}>Smazat</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
