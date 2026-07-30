@@ -58,11 +58,13 @@ export function LeadsGrid({
   onPatch,
   onDelete,
   onRequestFollowup,
+  onRequestMeeting,
 }: {
   leads: Lead[];
   onPatch: (id: string, patch: Partial<Lead>) => void;
   onDelete: (ids: string[]) => void;
   onRequestFollowup: (lead: Lead) => void;
+  onRequestMeeting: (lead: Lead) => void;
 }) {
   const [noteLead, setNoteLead] = useState<Lead | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -180,6 +182,10 @@ export function LeadsGrid({
                 value={lead.status}
                 onValueChange={(v) => {
                   const status = v as LeadStatus;
+                  if (status === "domluvena_schuzka") {
+                    onRequestMeeting(lead);
+                    return;
+                  }
                   onPatch(lead.id, { status });
                   if (status === "zavolat_pozdeji") {
                     onRequestFollowup({ ...lead, status });
