@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarPlus, MessageSquarePlus, Trash2 } from "lucide-react";
+import { CalendarPlus, MessageSquarePlus, PhoneCall, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import {
   type DealStage,
 } from "@/lib/deals";
 import { fromLocalInputValue, toLocalInputValue } from "@/lib/leads";
+import { MeetingDialog, type MeetingResult } from "@/components/crm/meeting-dialog";
 
 type StringField =
   | "company_name"
@@ -62,6 +63,7 @@ export function DealDrawer({
   const [notes, setNotes] = useState<DealNote[]>([]);
   const [draft, setDraft] = useState("");
   const [followupValue, setFollowupValue] = useState("");
+  const [meetingOpen, setMeetingOpen] = useState(false);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
@@ -134,6 +136,7 @@ export function DealDrawer({
   };
 
   return (
+    <>
     <Sheet open onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="scroll-slim w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
@@ -146,6 +149,21 @@ export function DealDrawer({
         </SheetHeader>
 
         <div className="space-y-5 px-4 pb-8">
+          <div className="rounded-lg border border-primary/40 bg-primary/10 p-3">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+              <PhoneCall className="size-3.5" />
+              Poznámka z cold callu
+            </p>
+            <p className="mt-1 whitespace-pre-wrap text-sm">
+              {deal.cold_note?.trim() || "— bez poznámky —"}
+            </p>
+          </div>
+
+          <Button size="sm" variant="secondary" onClick={() => setMeetingOpen(true)}>
+            <CalendarPlus className="size-4" />
+            Naplánovat schůzku
+          </Button>
+
           <div className="space-y-1.5">
             <Label className="text-xs">Fáze</Label>
             <Select
@@ -182,7 +200,7 @@ export function DealDrawer({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Poznámka z cold callu</Label>
+            <Label className="text-xs">Upravit poznámku z cold callu</Label>
             <Textarea
               rows={3}
               value={deal.cold_note ?? ""}
@@ -277,5 +295,49 @@ export function DealDrawer({
         </div>
       </SheetContent>
     </Sheet>
+
+    <MeetingDialog
+      target={
+        meetingOpen
+          ? {
+              company_name: deal.company_name,
+              contact_name: deal.contact_name,
+              phone: deal.phone,
+              email: deal.email,
+              website_url: deal.website_url,
+              note: deal.cold_note ?? "",
+            }
+          : null
+      }
+      onClose={() => setMeetingOpen(false)}
+      onConfirm={async (result: MeetingResult) => {
+        const patch: Partial<Deal> = {
+          stage: "nova_schuzka",
+          followup_at: result.startIso,
+          followup_note: result.notes,
+          followup_done: false,
+        };
+        onPatch(deal.id, patch);
+        await supabase.from("deals").update(patch).eq("id", deal.id);
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user && result.notes.trim()) {
+          const { data } = await supabase
+            .from("deal_notes")
+            .insert({
+              deal_id: deal.id,
+              user_id: userData.user.id,
+              author: userData.user.email ?? "Já",
+              body: `Schůzka naplánována: ${formatDateTime(result.startIso)}\n${result.notes.trim()}`,
+            })
+            .select()
+            .single();
+          if (data) setNotes((prev) => [data as DealNote, ...prev]);
+        }
+        notifyDealsChanged();
+        setMeetingOpen(false);
+        toast.success("Schůzka naplánována.");
+      }}
+    />
+    </>
   );
 }
