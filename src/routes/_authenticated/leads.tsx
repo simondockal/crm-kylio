@@ -1,7 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { CalendarPlus, LogOut, Plus, Search } from "lucide-react";
+import { CalendarPlus, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { AppShell } from "@/components/crm/app-shell";
 import { LeadsGrid } from "@/components/crm/leads-grid";
 import { ImportCsvDialog, type ImportRow } from "@/components/crm/import-csv-dialog";
 import {
@@ -25,6 +24,7 @@ import {
   type Lead,
   type LeadStatus,
 } from "@/lib/leads";
+import { notifyDealsChanged, type Deal } from "@/lib/deals";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/leads")({
@@ -50,8 +50,6 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ];
 
 function LeadsPage() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -82,14 +80,47 @@ function LeadsPage() {
     if (error) toast.error("Uložení se nezdařilo.");
   }, []);
 
+  const ensureDeal = useCallback(async (lead: Lead) => {
+    const { data: existing } = await supabase
+      .from("deals")
+      .select("id")
+      .eq("lead_id", lead.id)
+      .maybeSingle();
+    if (existing) return;
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+    const { error } = await supabase.from("deals").insert({
+      user_id: userData.user.id,
+      lead_id: lead.id,
+      company_name: lead.company_name,
+      website_url: lead.website_url,
+      contact_name: lead.contact_name,
+      phone: lead.phone,
+      email: lead.email,
+      cold_note: lead.note,
+      stage: "nova_schuzka",
+      position: Date.now(),
+    } satisfies Partial<Deal> & { user_id: string });
+    if (error) {
+      toast.error("Deal se nepodařilo vytvořit.");
+      return;
+    }
+    notifyDealsChanged();
+    toast.success("Přidáno do pipeline: Nové / Schůzka domluvena");
+  }, []);
+
   const patchLead = useCallback(
     (id: string, patch: Partial<Lead>) => {
       setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
+      if (patch.status === "domluvena_schuzka") {
+        const lead = leads.find((l) => l.id === id);
+        if (lead) void ensureDeal({ ...lead, ...patch });
+      }
       const key = `${id}:${Object.keys(patch).join(",")}`;
       clearTimeout(timers.current[key]);
       timers.current[key] = setTimeout(() => void flush(id, patch), 450);
     },
-    [flush],
+    [flush, leads, ensureDeal],
   );
 
   const addRow = async () => {
@@ -107,14 +138,16 @@ function LeadsPage() {
     setLeads((prev) => [...prev, data as Lead]);
   };
 
-  const deleteRow = async (id: string) => {
+  const deleteRows = async (ids: string[]) => {
     const prev = leads;
-    setLeads((l) => l.filter((x) => x.id !== id));
-    const { error } = await supabase.from("leads").delete().eq("id", id);
+    setLeads((l) => l.filter((x) => !ids.includes(x.id)));
+    const { error } = await supabase.from("leads").delete().in("id", ids);
     if (error) {
       setLeads(prev);
       toast.error("Smazání se nezdařilo.");
+      return;
     }
+    toast.success(ids.length === 1 ? "Kontakt smazán." : `Smazáno ${ids.length} kontaktů.`);
   };
 
   const importRows = async (rows: ImportRow[]) => {
@@ -160,13 +193,6 @@ function LeadsPage() {
     setFollowupLead(null);
   };
 
-  const signOut = async () => {
-    await queryClient.cancelQueries();
-    queryClient.clear();
-    await supabase.auth.signOut();
-    navigate({ to: "/auth", replace: true });
-  };
-
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return leads.filter((l) => {
@@ -188,13 +214,10 @@ function LeadsPage() {
   }, [leads]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3 px-5 py-3">
-          <span className="font-display text-base font-bold tracking-tight">
-            Kylio<span className="text-primary">.</span>
-          </span>
-          <div className="relative ml-2 w-64">
+    <AppShell
+      actions={
+        <>
+          <div className="relative w-64">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -203,19 +226,14 @@ function LeadsPage() {
               className="h-8 pl-8 text-sm"
             />
           </div>
-          <div className="ml-auto flex items-center gap-2">
-            <ImportCsvDialog onImport={importRows} />
-            <Button size="sm" onClick={addRow}>
-              <Plus className="size-4" />
-              Nový řádek
-            </Button>
-            <ThemeToggle />
-            <Button variant="ghost" size="icon" onClick={signOut} aria-label="Odhlásit se">
-              <LogOut className="size-4" />
-            </Button>
-          </div>
-        </div>
-
+          <ImportCsvDialog onImport={importRows} />
+          <Button size="sm" onClick={addRow}>
+            <Plus className="size-4" />
+            Nový řádek
+          </Button>
+        </>
+      }
+      filters={
         <div className="scroll-slim flex gap-1 overflow-x-auto px-5 pb-2">
           {FILTERS.map((f) => (
             <button
@@ -234,20 +252,18 @@ function LeadsPage() {
             </button>
           ))}
         </div>
-      </header>
-
-      <main className="p-5">
-        {loading ? (
-          <div className="py-24 text-center text-sm text-muted-foreground">Načítám…</div>
-        ) : (
-          <LeadsGrid
-            leads={visible}
-            onPatch={patchLead}
-            onDelete={deleteRow}
-            onRequestFollowup={openFollowup}
-          />
-        )}
-      </main>
+      }
+    >
+      {loading ? (
+        <div className="py-24 text-center text-sm text-muted-foreground">Načítám…</div>
+      ) : (
+        <LeadsGrid
+          leads={visible}
+          onPatch={patchLead}
+          onDelete={deleteRows}
+          onRequestFollowup={openFollowup}
+        />
+      )}
 
       <Dialog open={!!followupLead} onOpenChange={(o) => !o && setFollowupLead(null)}>
         <DialogContent className="max-w-md">
@@ -274,6 +290,6 @@ function LeadsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </AppShell>
   );
 }
