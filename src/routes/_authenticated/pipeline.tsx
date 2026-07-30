@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { AppShell } from "@/components/crm/app-shell";
 import { DealDrawer } from "@/components/crm/deal-drawer";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   DEALS_CHANGED,
   STAGES,
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
 });
 
 function PipelinePage() {
+  const { loading: roleLoading, isAdmin } = useCurrentUser();
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
