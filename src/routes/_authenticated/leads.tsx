@@ -16,6 +16,7 @@ import {
 import { AppShell } from "@/components/crm/app-shell";
 import { LeadsGrid } from "@/components/crm/leads-grid";
 import { ImportCsvDialog, type ImportRow } from "@/components/crm/import-csv-dialog";
+import { MeetingDialog, type MeetingResult } from "@/components/crm/meeting-dialog";
 import {
   STATUSES,
   fromLocalInputValue,
@@ -56,6 +57,7 @@ function LeadsPage() {
   const [search, setSearch] = useState("");
   const [followupLead, setFollowupLead] = useState<Lead | null>(null);
   const [followupValue, setFollowupValue] = useState("");
+  const [meetingLead, setMeetingLead] = useState<Lead | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
@@ -80,16 +82,36 @@ function LeadsPage() {
     if (error) toast.error("Uložení se nezdařilo.");
   }, []);
 
-  const ensureDeal = useCallback(async (lead: Lead) => {
+  const ensureDeal = useCallback(async (lead: Lead, meetingNote?: string) => {
     const { data: existing } = await supabase
       .from("deals")
-      .select("id")
+      .select("id, cold_note")
       .eq("lead_id", lead.id)
       .maybeSingle();
-    if (existing) return;
+    if (existing) {
+      await supabase
+        .from("deals")
+        .update({ cold_note: lead.note ?? "" })
+        .eq("id", existing.id);
+      if (meetingNote?.trim()) {
+        const { data: u } = await supabase.auth.getUser();
+        if (u.user) {
+          await supabase.from("deal_notes").insert({
+            deal_id: existing.id,
+            user_id: u.user.id,
+            author: u.user.email ?? "Já",
+            body: meetingNote.trim(),
+          });
+        }
+      }
+      notifyDealsChanged();
+      return;
+    }
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
-    const { error } = await supabase.from("deals").insert({
+    const { data: created, error } = await supabase
+      .from("deals")
+      .insert({
       user_id: userData.user.id,
       lead_id: lead.id,
       company_name: lead.company_name,
@@ -100,10 +122,20 @@ function LeadsPage() {
       cold_note: lead.note,
       stage: "nova_schuzka",
       position: Date.now(),
-    } satisfies Partial<Deal> & { user_id: string });
+      } satisfies Partial<Deal> & { user_id: string })
+      .select()
+      .single();
     if (error) {
       toast.error("Deal se nepodařilo vytvořit.");
       return;
+    }
+    if (created && meetingNote?.trim()) {
+      await supabase.from("deal_notes").insert({
+        deal_id: created.id,
+        user_id: userData.user.id,
+        author: userData.user.email ?? "Já",
+        body: meetingNote.trim(),
+      });
     }
     notifyDealsChanged();
     toast.success("Přidáno do pipeline: Nové / Schůzka domluvena");
@@ -112,16 +144,31 @@ function LeadsPage() {
   const patchLead = useCallback(
     (id: string, patch: Partial<Lead>) => {
       setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-      if (patch.status === "domluvena_schuzka") {
-        const lead = leads.find((l) => l.id === id);
-        if (lead) void ensureDeal({ ...lead, ...patch });
-      }
       const key = `${id}:${Object.keys(patch).join(",")}`;
       clearTimeout(timers.current[key]);
       timers.current[key] = setTimeout(() => void flush(id, patch), 450);
     },
-    [flush, leads, ensureDeal],
+    [flush],
   );
+
+  const confirmMeeting = async (result: MeetingResult) => {
+    if (!meetingLead) return;
+    const updated: Lead = {
+      ...meetingLead,
+      status: "domluvena_schuzka",
+      note: result.notes,
+      followup_at: result.startIso,
+    };
+    setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    await flush(updated.id, {
+      status: "domluvena_schuzka",
+      note: result.notes,
+      followup_at: result.startIso,
+    });
+    await ensureDeal(updated);
+    setMeetingLead(null);
+    toast.success("Schůzka naplánována a deal je v pipeline.");
+  };
 
   const addRow = async () => {
     const { data: userData } = await supabase.auth.getUser();
@@ -262,8 +309,15 @@ function LeadsPage() {
           onPatch={patchLead}
           onDelete={deleteRows}
           onRequestFollowup={openFollowup}
+          onRequestMeeting={(lead) => setMeetingLead(lead)}
         />
       )}
+
+      <MeetingDialog
+        target={meetingLead}
+        onClose={() => setMeetingLead(null)}
+        onConfirm={confirmMeeting}
+      />
 
       <Dialog open={!!followupLead} onOpenChange={(o) => !o && setFollowupLead(null)}>
         <DialogContent className="max-w-md">
