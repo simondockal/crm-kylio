@@ -59,23 +59,35 @@ function LeadsPage() {
   const [followupValue, setFollowupValue] = useState("");
   const [meetingLead, setMeetingLead] = useState<Lead | null>(null);
   const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const deletingIds = useRef(new Set<string>());
+
+  const loadLeads = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("leads")
+      .select("*")
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    const loaded = (data ?? []) as Lead[];
+    setLeads(loaded);
+    return loaded;
+  }, []);
 
   useEffect(() => {
     let active = true;
-    supabase
-      .from("leads")
-      .select("*")
-      .order("created_at", { ascending: true })
-      .then(({ data, error }) => {
+    loadLeads()
+      .catch(() => {
         if (!active) return;
-        if (error) toast.error("Nepodařilo se načíst kontakty.");
-        setLeads((data ?? []) as Lead[]);
+        toast.error("Nepodařilo se načíst kontakty.");
+      })
+      .finally(() => {
+        if (!active) return;
         setLoading(false);
       });
     return () => {
       active = false;
+      Object.values(timers.current).forEach(clearTimeout);
     };
-  }, []);
+  }, [loadLeads]);
 
   const flush = useCallback(async (id: string, patch: Partial<Lead>) => {
     const { error } = await supabase.from("leads").update(patch).eq("id", id);
@@ -143,6 +155,7 @@ function LeadsPage() {
 
   const patchLead = useCallback(
     (id: string, patch: Partial<Lead>) => {
+      if (deletingIds.current.has(id)) return;
       setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
       const key = `${id}:${Object.keys(patch).join(",")}`;
       clearTimeout(timers.current[key]);
@@ -186,34 +199,50 @@ function LeadsPage() {
   };
 
   const deleteRows = async (ids: string[]) => {
-    const prev = leads;
-    setLeads((l) => l.filter((x) => !ids.includes(x.id)));
-    let deletedCount = 0;
-    // Detach related deals first (FK) and delete in chunks so long URLs don't fail.
-    for (let i = 0; i < ids.length; i += 100) {
-      const chunk = ids.slice(i, i + 100);
-      const { error: detachError } = await supabase
-        .from("deals")
-        .update({ lead_id: null })
-        .in("lead_id", chunk);
-      if (detachError) {
-        setLeads(prev);
-        toast.error("Smazání se nezdařilo: " + detachError.message);
-        return;
+    if (ids.length === 0) return false;
+
+    ids.forEach((id) => deletingIds.current.add(id));
+    for (const [key, timer] of Object.entries(timers.current)) {
+      if (ids.some((id) => key.startsWith(`${id}:`))) {
+        clearTimeout(timer);
+        delete timers.current[key];
       }
-      const { data: deleted, error } = await supabase
-        .from("leads")
-        .delete()
-        .in("id", chunk)
-        .select("id");
-      if (error || (deleted?.length ?? 0) !== chunk.length) {
-        setLeads(prev);
-        toast.error(error ? `Smazání se nezdařilo: ${error.message}` : "Databáze nepotvrdila smazání všech kontaktů.");
-        return;
-      }
-      deletedCount += deleted?.length ?? 0;
     }
-    toast.success(deletedCount === 1 ? "Kontakt byl trvale smazán." : `Trvale smazáno ${deletedCount} kontaktů.`);
+
+    let deletedCount = 0;
+    try {
+      for (let i = 0; i < ids.length; i += 100) {
+        const chunk = ids.slice(i, i + 100);
+        const { data: deleted, error } = await supabase
+          .from("leads")
+          .delete()
+          .in("id", chunk)
+          .select("id");
+        if (error) throw error;
+        if ((deleted?.length ?? 0) !== chunk.length) {
+          throw new Error("Databáze nepotvrdila smazání všech kontaktů.");
+        }
+        deletedCount += deleted?.length ?? 0;
+      }
+
+      const refreshed = await loadLeads();
+      if (refreshed.some((lead) => ids.includes(lead.id))) {
+        throw new Error("Kontrolní načtení našlo některé smazané kontakty.");
+      }
+      toast.success(deletedCount === 1 ? "Kontakt byl trvale smazán." : `Trvale smazáno ${deletedCount} kontaktů.`);
+      return true;
+    } catch (error) {
+      try {
+        await loadLeads();
+      } catch {
+        // Keep the currently visible rows when the verification reload also fails.
+      }
+      const message = error instanceof Error ? error.message : "Neznámá chyba";
+      toast.error(`Smazání se nezdařilo: ${message}`);
+      return false;
+    } finally {
+      ids.forEach((id) => deletingIds.current.delete(id));
+    }
   };
 
   const importRows = async (rows: ImportRow[]) => {
