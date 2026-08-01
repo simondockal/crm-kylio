@@ -62,7 +62,7 @@ export function LeadsGrid({
 }: {
   leads: Lead[];
   onPatch: (id: string, patch: Partial<Lead>) => void;
-  onDelete: (ids: string[]) => Promise<void>;
+  onDelete: (ids: string[]) => Promise<boolean>;
   onRequestFollowup: (lead: Lead) => void;
   onRequestMeeting: (lead: Lead) => void;
 }) {
@@ -76,8 +76,10 @@ export function LeadsGrid({
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
-    await onDelete(pendingDelete);
-    setSelected((prev) => prev.filter((id) => !pendingDelete.includes(id)));
+    const deleted = await onDelete(pendingDelete);
+    if (deleted) {
+      setSelected((prev) => prev.filter((id) => !pendingDelete.includes(id)));
+    }
     setPendingDelete(null);
   };
 
