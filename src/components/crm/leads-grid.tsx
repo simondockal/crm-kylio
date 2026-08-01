@@ -62,7 +62,7 @@ export function LeadsGrid({
 }: {
   leads: Lead[];
   onPatch: (id: string, patch: Partial<Lead>) => void;
-  onDelete: (ids: string[]) => void;
+  onDelete: (ids: string[]) => Promise<void>;
   onRequestFollowup: (lead: Lead) => void;
   onRequestMeeting: (lead: Lead) => void;
 }) {
@@ -74,9 +74,9 @@ export function LeadsGrid({
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!pendingDelete) return;
-    onDelete(pendingDelete);
+    await onDelete(pendingDelete);
     setSelected((prev) => prev.filter((id) => !pendingDelete.includes(id)));
     setPendingDelete(null);
   };
@@ -298,7 +298,7 @@ export function LeadsGrid({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Zrušit</AlertDialogCancel>
-          <AlertDialogAction onClick={confirmDelete}>Smazat</AlertDialogAction>
+          <AlertDialogAction onClick={() => void confirmDelete()}>Smazat trvale</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
