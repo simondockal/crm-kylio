@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { to: "/leads", label: "Cold Calling", adminOnly: false },
   { to: "/pipeline", label: "Sales Pipeline", adminOnly: true },
+  { to: "/reporting", label: "Reporting & Analytics", adminOnly: true },
 ] as const;
 
 export function AppShell({
