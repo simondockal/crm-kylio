@@ -188,18 +188,32 @@ function LeadsPage() {
   const deleteRows = async (ids: string[]) => {
     const prev = leads;
     setLeads((l) => l.filter((x) => !ids.includes(x.id)));
+    let deletedCount = 0;
     // Detach related deals first (FK) and delete in chunks so long URLs don't fail.
     for (let i = 0; i < ids.length; i += 100) {
       const chunk = ids.slice(i, i + 100);
-      await supabase.from("deals").update({ lead_id: null }).in("lead_id", chunk);
-      const { error } = await supabase.from("leads").delete().in("id", chunk);
-      if (error) {
+      const { error: detachError } = await supabase
+        .from("deals")
+        .update({ lead_id: null })
+        .in("lead_id", chunk);
+      if (detachError) {
         setLeads(prev);
-        toast.error("Smazání se nezdařilo: " + error.message);
+        toast.error("Smazání se nezdařilo: " + detachError.message);
         return;
       }
+      const { data: deleted, error } = await supabase
+        .from("leads")
+        .delete()
+        .in("id", chunk)
+        .select("id");
+      if (error || (deleted?.length ?? 0) !== chunk.length) {
+        setLeads(prev);
+        toast.error(error ? `Smazání se nezdařilo: ${error.message}` : "Databáze nepotvrdila smazání všech kontaktů.");
+        return;
+      }
+      deletedCount += deleted?.length ?? 0;
     }
-    toast.success(ids.length === 1 ? "Kontakt smazán." : `Smazáno ${ids.length} kontaktů.`);
+    toast.success(deletedCount === 1 ? "Kontakt byl trvale smazán." : `Trvale smazáno ${deletedCount} kontaktů.`);
   };
 
   const importRows = async (rows: ImportRow[]) => {
