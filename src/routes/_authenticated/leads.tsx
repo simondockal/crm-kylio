@@ -188,11 +188,16 @@ function LeadsPage() {
   const deleteRows = async (ids: string[]) => {
     const prev = leads;
     setLeads((l) => l.filter((x) => !ids.includes(x.id)));
-    const { error } = await supabase.from("leads").delete().in("id", ids);
-    if (error) {
-      setLeads(prev);
-      toast.error("Smazání se nezdařilo.");
-      return;
+    // Detach related deals first (FK) and delete in chunks so long URLs don't fail.
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      await supabase.from("deals").update({ lead_id: null }).in("lead_id", chunk);
+      const { error } = await supabase.from("leads").delete().in("id", chunk);
+      if (error) {
+        setLeads(prev);
+        toast.error("Smazání se nezdařilo: " + error.message);
+        return;
+      }
     }
     toast.success(ids.length === 1 ? "Kontakt smazán." : `Smazáno ${ids.length} kontaktů.`);
   };
