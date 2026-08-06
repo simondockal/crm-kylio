@@ -35,6 +35,8 @@ export const Route = createFileRoute("/_authenticated/leads")({
       { name: "description", content: "Tabulka leadů pro cold calling: stavy hovorů, poznámky a follow-upy." },
       { property: "og:title", content: "Kontakty — Kylio CRM" },
       { property: "og:description", content: "Tabulka leadů pro cold calling." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: LeadsPage,
@@ -312,13 +314,13 @@ function LeadsPage() {
     <AppShell
       actions={
         <>
-          <div className="relative w-64">
+          <div className="relative w-full min-w-52 sm:w-72">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Hledat firmu, jméno, telefon…"
-              className="h-8 pl-8 text-sm"
+              className="h-10 rounded-full border-grid-line bg-surface-elevated pl-9 text-sm text-canvas-light placeholder:text-on-dark-mute"
             />
           </div>
           <ImportCsvDialog onImport={importRows} />
@@ -329,17 +331,17 @@ function LeadsPage() {
         </>
       }
       filters={
-        <div className="scroll-slim flex gap-1 overflow-x-auto px-5 pb-2">
+        <div className="scroll-slim light-workspace flex gap-2 overflow-x-auto border-t border-white/10 bg-canvas-dark px-6 pb-3 pt-1">
           {FILTERS.map((f) => (
             <button
               key={f.key}
               type="button"
               onClick={() => setFilter(f.key)}
               className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold transition-colors",
                 filter === f.key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+                  ? "bg-canvas-light text-canvas-dark"
+                  : "text-on-dark-mute hover:bg-surface-elevated hover:text-canvas-light",
               )}
             >
               {f.label}

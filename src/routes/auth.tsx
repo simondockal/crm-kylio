@@ -14,6 +14,8 @@ export const Route = createFileRoute("/auth")({
       { name: "description", content: "Přihlaste se do Kylio, tabulkového CRM pro cold calling." },
       { property: "og:title", content: "Přihlášení — Kylio CRM" },
       { property: "og:description", content: "Přihlaste se do svého Kylio účtu." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: AuthPage,
@@ -64,16 +66,16 @@ function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col bg-canvas-dark text-canvas-light">
       <div className="flex justify-end p-4">
         <ThemeToggle />
       </div>
       <main className="flex flex-1 items-center justify-center px-6 pb-24">
-        <div className="w-full max-w-sm">
-          <span className="font-display text-2xl font-bold tracking-tight">
+        <div className="w-full max-w-md rounded-[20px] bg-surface-elevated p-8 sm:p-10">
+          <span className="font-display text-2xl font-semibold">
             Kylio<span className="text-primary">.</span>
           </span>
-          <h1 className="mt-6 text-2xl font-semibold">
+          <h1 className="mt-10 text-4xl font-medium leading-none">
             {mode === "signin" ? "Přihlášení" : "Vytvořit účet"}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -113,7 +115,7 @@ function AuthPage() {
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-canvas-light text-canvas-dark hover:bg-canvas-light/85" disabled={loading}>
               {loading ? "Pracuji…" : mode === "signin" ? "Přihlásit se" : "Vytvořit účet"}
             </Button>
           </form>

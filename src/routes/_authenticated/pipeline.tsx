@@ -37,6 +37,8 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
       },
       { property: "og:title", content: "Sales Pipeline — Kylio CRM" },
       { property: "og:description", content: "Kanban pipeline domluvených schůzek." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: PipelinePage,
@@ -114,7 +116,7 @@ function PipelinePage() {
   if (!roleLoading && !isAdmin) {
     return (
       <AppShell>
-        <div className="mx-auto mt-16 max-w-md rounded-xl border border-border bg-surface p-6 text-center">
+        <div className="mx-auto mt-16 max-w-md rounded-[20px] border border-border bg-surface p-8 text-center">
           <h1 className="font-display text-lg font-semibold">Nemáte přístup</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Sales Pipeline je dostupná pouze pro roli Admin.
@@ -133,7 +135,7 @@ function PipelinePage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Hledat v pipeline…"
-            className="h-8 pl-8 text-sm"
+          className="h-10 rounded-full border-grid-line bg-surface-elevated pl-9 text-sm text-canvas-light placeholder:text-on-dark-mute"
           />
         </div>
       }
@@ -141,7 +143,7 @@ function PipelinePage() {
       {loading ? (
         <div className="py-24 text-center text-sm text-muted-foreground">Načítám…</div>
       ) : (
-        <div className="scroll-slim flex gap-3 overflow-x-auto pb-4">
+        <div className="scroll-slim flex gap-4 overflow-x-auto pb-4">
           {STAGES.map((stage) => {
             const items = visible.filter((d) => d.stage === stage.value);
             return (
@@ -159,7 +161,7 @@ function PipelinePage() {
                   setDragId(null);
                 }}
                 className={cn(
-                  "flex w-[290px] shrink-0 flex-col rounded-xl border border-border bg-surface transition-colors",
+                  "flex w-[300px] shrink-0 flex-col rounded-[20px] border border-border bg-surface transition-colors",
                   overStage === stage.value && "border-primary bg-primary/5",
                 )}
               >
@@ -185,7 +187,7 @@ function PipelinePage() {
                       }}
                       onClick={() => setOpenDealId(d.id)}
                       className={cn(
-                        "group cursor-grab rounded-lg border border-border bg-surface-2 p-2.5 text-left transition-shadow hover:shadow-md active:cursor-grabbing",
+                        "group cursor-grab rounded-xl border border-border bg-surface-2 p-4 text-left transition-colors hover:border-primary/40 active:cursor-grabbing",
                         dragId === d.id && "opacity-50",
                       )}
                     >
