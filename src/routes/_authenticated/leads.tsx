@@ -35,6 +35,8 @@ export const Route = createFileRoute("/_authenticated/leads")({
       { name: "description", content: "Tabulka leadů pro cold calling: stavy hovorů, poznámky a follow-upy." },
       { property: "og:title", content: "Kontakty — Kylio CRM" },
       { property: "og:description", content: "Tabulka leadů pro cold calling." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: LeadsPage,

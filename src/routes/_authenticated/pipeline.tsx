@@ -37,6 +37,8 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
       },
       { property: "og:title", content: "Sales Pipeline — Kylio CRM" },
       { property: "og:description", content: "Kanban pipeline domluvených schůzek." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: PipelinePage,

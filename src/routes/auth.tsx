@@ -14,6 +14,8 @@ export const Route = createFileRoute("/auth")({
       { name: "description", content: "Přihlaste se do Kylio, tabulkového CRM pro cold calling." },
       { property: "og:title", content: "Přihlášení — Kylio CRM" },
       { property: "og:description", content: "Přihlaste se do svého Kylio účtu." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: AuthPage,

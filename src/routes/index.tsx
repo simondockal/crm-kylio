@@ -19,6 +19,8 @@ export const Route = createFileRoute("/")({
         property: "og:description",
         content: "Import CSV, inline editace jako v Excelu, stavy hovorů a follow-upy.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: Index,
