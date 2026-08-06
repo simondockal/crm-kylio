@@ -331,7 +331,7 @@ function LeadsPage() {
         </>
       }
       filters={
-        <div className="scroll-slim light-workspace flex gap-2 overflow-x-auto border-t border-white/10 bg-canvas-dark px-6 pb-3 pt-1">
+        <div className="scroll-slim flex gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-3 pt-1">
           {FILTERS.map((f) => (
             <button
               key={f.key}

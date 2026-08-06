@@ -210,7 +210,7 @@ function ReportingPage() {
         <p className="text-sm text-muted-foreground">Načítám data…</p>
       ) : (
         <div className="space-y-6">
-          <section className="rounded-[20px] bg-canvas-dark p-6 text-canvas-light sm:p-8">
+          <section className="dark-canvas rounded-[20px] bg-canvas-dark p-6 text-canvas-light sm:p-8">
             <h1 className="font-display text-3xl font-medium">Prodejní funnel</h1>
             <p className="mt-1 text-xs text-muted-foreground">
               Konverze krok po kroku od importovaných leadů po uzavřené obchody.

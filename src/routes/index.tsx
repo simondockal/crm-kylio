@@ -45,7 +45,7 @@ function Index() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-canvas-dark text-canvas-light">
+    <div className="dark-canvas min-h-screen bg-canvas-dark text-canvas-light">
       <header className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-10">
         <span className="font-display text-xl font-semibold">
           Kylio<span className="text-primary">.</span>
