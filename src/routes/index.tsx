@@ -43,34 +43,33 @@ function Index() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <span className="font-display text-lg font-bold tracking-tight">
+    <div className="min-h-screen bg-canvas-dark text-canvas-light">
+      <header className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-10">
+        <span className="font-display text-xl font-semibold">
           Kylio<span className="text-primary">.</span>
         </span>
         <div className="flex items-center gap-1">
           <ThemeToggle />
-          <Button asChild variant="ghost" size="sm">
+          <Button asChild variant="secondary" size="sm">
             <Link to={signedIn ? "/leads" : "/auth"}>{signedIn ? "Otevřít CRM" : "Přihlásit se"}</Link>
           </Button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-16">
-        <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
+      <main>
+        <section className="mx-auto max-w-7xl px-6 pb-28 pt-20 lg:px-10 lg:pb-32 lg:pt-28">
+        <p className="text-sm font-semibold text-on-dark-mute">
           Cold calling CRM
         </p>
-        <h1 className="mt-4 max-w-2xl text-5xl font-bold leading-[1.05] sm:text-6xl">
-          Tabulka, která drží
-          <br />
-          tempo tvého telefonu.
+        <h1 className="mt-5 max-w-5xl text-5xl font-medium leading-none sm:text-7xl lg:text-[104px]">
+          Volejte rychleji.<br />Prodávejte chytřeji.
         </h1>
-        <p className="mt-6 max-w-xl text-base text-muted-foreground">
+        <p className="mt-8 max-w-xl text-lg leading-relaxed text-on-dark-mute">
           Žádné klikací peklo. Jeden řádek = jeden lead. Zapisuješ během hovoru,
           všechno se ukládá samo.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button asChild size="lg">
+          <Button asChild size="lg" className="bg-canvas-light text-canvas-dark hover:bg-canvas-light/85">
             <Link to={signedIn ? "/leads" : "/auth"}>
               {signedIn ? "Otevřít CRM" : "Začít volat"}
               <ArrowRight className="size-4" />
@@ -78,15 +77,17 @@ function Index() {
           </Button>
         </div>
 
-        <div className="mt-20 grid gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-2">
+        </section>
+        <section className="light-workspace bg-canvas-light px-6 py-20 text-foreground lg:px-10 lg:py-24">
+        <div className="mx-auto grid max-w-7xl gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {FEATURES.map((f) => (
-            <div key={f.title} className="bg-surface p-6">
-              <f.icon className="size-5 text-primary" />
-              <h2 className="mt-4 text-base font-semibold">{f.title}</h2>
-              <p className="mt-1 text-sm text-muted-foreground">{f.text}</p>
+            <div key={f.title} className="rounded-[20px] border border-border bg-surface p-8">
+              <f.icon className="size-6 text-primary" />
+              <h2 className="mt-12 text-xl font-medium">{f.title}</h2>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{f.text}</p>
             </div>
           ))}
-        </div>
+        </div></section>
       </main>
     </div>
   );

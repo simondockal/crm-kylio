@@ -210,8 +210,8 @@ function ReportingPage() {
         <p className="text-sm text-muted-foreground">Načítám data…</p>
       ) : (
         <div className="space-y-6">
-          <section className="rounded-xl border border-border bg-surface p-5">
-            <h1 className="font-display text-base font-semibold">Prodejní funnel</h1>
+          <section className="rounded-[20px] bg-canvas-dark p-6 text-canvas-light sm:p-8">
+            <h1 className="font-display text-3xl font-medium">Prodejní funnel</h1>
             <p className="mt-1 text-xs text-muted-foreground">
               Konverze krok po kroku od importovaných leadů po uzavřené obchody.
             </p>
@@ -226,9 +226,9 @@ function ReportingPage() {
                   <div key={s.label}>
                     <div className="flex items-center gap-3">
                       <div className="w-52 shrink-0 text-xs font-medium">{s.label}</div>
-                      <div className="relative h-9 flex-1 overflow-hidden rounded-md bg-surface-2">
+                       <div className="relative h-11 flex-1 overflow-hidden rounded-full bg-surface-elevated">
                         <div
-                          className="h-full rounded-md bg-primary/85 transition-all"
+                          className="h-full rounded-full bg-primary transition-all"
                           style={{ width: `${width}%` }}
                         />
                         <div className="absolute inset-0 flex items-center justify-between px-3">
@@ -253,7 +253,7 @@ function ReportingPage() {
                 );
               })}
             </div>
-            <div className="mt-5 rounded-lg border border-border bg-surface-2 p-3 text-xs">
+            <div className="mt-6 rounded-xl border border-white/10 bg-surface-elevated p-4 text-xs">
               End-to-end konverze:{" "}
               <span className="font-mono font-semibold text-primary">{fmtPct(pct(won, imported))}</span>{" "}
               ({won} z {imported} leadů)
@@ -293,7 +293,7 @@ function ReportingPage() {
                   hint="Import → Vyhráno (průměr)"
                 />
               </div>
-              <div className="rounded-xl border border-border bg-surface p-4">
+               <div className="rounded-[20px] border border-border bg-surface p-6">
                 <h3 className="text-xs font-medium text-muted-foreground">Kde ztrácíme obchody</h3>
                 <div className="mt-2 h-56">
                   {leakage.length ? (
@@ -325,9 +325,9 @@ function ReportingPage() {
 
 function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-[20px] border border-border bg-surface p-6">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-mono text-2xl font-semibold tracking-tight">{value}</div>
+      <div className="mt-3 font-display text-3xl font-medium">{value}</div>
       {hint ? <div className="mt-0.5 text-[11px] text-muted-foreground">{hint}</div> : null}
     </div>
   );

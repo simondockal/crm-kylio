@@ -94,7 +94,7 @@ export function LeadsGrid({
   return (
     <>
     {selected.length > 0 ? (
-      <div className="mb-2 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/5 px-3 py-2 text-sm">
+      <div className="mb-4 flex items-center gap-3 rounded-[20px] border border-primary/40 bg-primary/5 px-5 py-3 text-sm">
         <span className="font-medium">Vybráno {selected.length}</span>
         <Button size="sm" variant="ghost" onClick={() => setSelected([])}>
           Zrušit výběr
@@ -110,10 +110,10 @@ export function LeadsGrid({
         </Button>
       </div>
     ) : null}
-    <div className="scroll-slim overflow-x-auto rounded-xl border border-border bg-surface">
+    <div className="scroll-slim overflow-x-auto rounded-[20px] border border-border bg-surface">
       <div className="min-w-max">
         <div
-          className="grid border-b border-grid-line bg-surface-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+           className="grid border-b border-grid-line bg-surface-2 text-[11px] font-semibold uppercase text-muted-foreground"
           style={{ gridTemplateColumns: COLUMNS }}
         >
           <div className="flex items-center gap-2 px-2.5 py-2.5">
@@ -136,7 +136,7 @@ export function LeadsGrid({
         {leads.map((lead, rowIndex) => (
           <div
             key={lead.id}
-            className="group grid items-center border-b border-grid-line last:border-b-0 hover:bg-surface-2/60"
+            className="group grid min-h-11 items-center border-b border-grid-line last:border-b-0 hover:bg-surface-2/70"
             style={{ gridTemplateColumns: COLUMNS }}
           >
             <div className="flex items-center gap-2 px-2.5 font-mono text-[11px] text-muted-foreground">
