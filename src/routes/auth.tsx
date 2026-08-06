@@ -66,7 +66,7 @@ function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas-dark text-canvas-light">
+    <div className="dark-canvas flex min-h-screen flex-col bg-canvas-dark text-canvas-light">
       <div className="flex justify-end p-4">
         <ThemeToggle />
       </div>

@@ -37,7 +37,7 @@ export function AppShell({
 
   return (
     <div className="min-h-screen bg-canvas-light">
-      <header className="sticky top-0 z-20 bg-canvas-dark text-canvas-light">
+      <header className="dark-canvas sticky top-0 z-20 bg-canvas-dark text-canvas-light">
         <div className="flex min-h-16 flex-wrap items-center gap-4 px-6 py-3 lg:px-8">
           <span className="font-display text-xl font-semibold">
             Kylio<span className="text-primary">.</span>
