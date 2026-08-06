@@ -78,6 +78,7 @@
   --color-canvas-light: var(--canvas-light);
   --color-surface-deep: var(--surface-deep);
   --color-surface-elevated: var(--surface-elevated);
+  --color-on-dark-mute: var(--on-dark-mute);
 }
 
 :root {
@@ -86,6 +87,7 @@
   --canvas-light: oklch(1 0 0);
   --surface-deep: oklch(0.07 0 0);
   --surface-elevated: oklch(0.2 0.005 250);
+  --on-dark-mute: oklch(1 0 0 / 72%);
   --background: oklch(1 0 0);
   --foreground: oklch(0.22 0.008 250);
   --surface: oklch(1 0 0);
@@ -134,6 +136,7 @@
   --canvas-light: oklch(1 0 0);
   --surface-deep: oklch(0.07 0 0);
   --surface-elevated: oklch(0.2 0.005 250);
+  --on-dark-mute: oklch(1 0 0 / 72%);
   --background: oklch(0 0 0);
   --foreground: oklch(0.98 0 0);
   --surface: oklch(0.1 0.004 250);
