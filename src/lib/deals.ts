@@ -115,14 +115,12 @@ export function meetingCalendarUrl(input: {
   contact_name: string;
   phone: string;
   website_url: string;
-  note: string;
   startIso: string;
   endIso: string;
   guests: string[];
 }) {
   const who = input.company_name?.trim() || input.contact_name?.trim() || "kontakt";
   const details = [
-    input.note?.trim() ? `Poznámky z cold callu:\n${input.note.trim()}` : null,
     input.contact_name?.trim() ? `Kontakt: ${input.contact_name.trim()}` : null,
     input.phone?.trim() ? `Telefon: ${input.phone.trim()}` : null,
     input.website_url?.trim() ? `Web: ${input.website_url.trim()}` : null,

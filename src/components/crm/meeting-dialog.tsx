@@ -61,7 +61,7 @@ export function MeetingDialog({
     const s = toLocalInputValue(base.toISOString());
     setStart(s);
     setEnd(plusMinutes(s, 60));
-    setNotes(target.note ?? "");
+    setNotes("");
     setHostIncluded(true);
     setMode(target.email?.trim() ? "lead" : "manual");
     setManualEmail("");
@@ -80,7 +80,6 @@ export function MeetingDialog({
     if (!startIso || !endIso) return;
     const url = meetingCalendarUrl({
       ...target,
-      note: notes,
       startIso,
       endIso,
       guests,
@@ -194,12 +193,12 @@ export function MeetingDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Poznámky / agenda</Label>
+            <Label className="text-xs">Interní poznámka k dealu (nejde do kalendáře)</Label>
             <Textarea
               rows={4}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Poznámky z cold callu…"
+              placeholder="Interní poznámka — do Google události se nepropíše…"
             />
           </div>
         </div>
