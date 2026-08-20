@@ -26,6 +26,8 @@ import {
   type LeadStatus,
 } from "@/lib/leads";
 import { notifyDealsChanged, type Deal } from "@/lib/deals";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useTeamMembers } from "@/hooks/use-team-members";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/leads")({
@@ -56,7 +58,10 @@ function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [owner, setOwner] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const { user, isAdmin } = useCurrentUser();
+  const { members } = useTeamMembers(isAdmin);
   const [followupLead, setFollowupLead] = useState<Lead | null>(null);
   const [followupValue, setFollowupValue] = useState("");
   const [meetingLead, setMeetingLead] = useState<Lead | null>(null);
@@ -188,9 +193,10 @@ function LeadsPage() {
   const addRow = async () => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
+    const targetUserId = isAdmin && owner !== "all" ? owner : userData.user.id;
     const { data, error } = await supabase
       .from("leads")
-      .insert({ user_id: userData.user.id })
+      .insert({ user_id: targetUserId })
       .select()
       .single();
     if (error || !data) {
@@ -250,7 +256,8 @@ function LeadsPage() {
   const importRows = async (rows: ImportRow[]) => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
-    const payload = rows.map((r) => ({ ...r, user_id: userData.user!.id }));
+    const targetUserId = isAdmin && owner !== "all" ? owner : userData.user.id;
+    const payload = rows.map((r) => ({ ...r, user_id: targetUserId }));
     const inserted: Lead[] = [];
     for (let i = 0; i < payload.length; i += 500) {
       const { data, error } = await supabase
@@ -292,7 +299,7 @@ function LeadsPage() {
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return leads.filter((l) => {
+    return ownerLeads.filter((l) => {
       if (filter !== "all" && l.status !== filter) return false;
       if (!q) return true;
       return [l.company_name, l.contact_name, l.phone, l.email]
@@ -300,15 +307,15 @@ function LeadsPage() {
         .toLowerCase()
         .includes(q);
     });
-  }, [leads, filter, search]);
+  }, [ownerLeads, filter, search]);
 
   const counts = useMemo(() => {
-    const map: Record<string, number> = { all: leads.length };
+    const map: Record<string, number> = { all: ownerLeads.length };
     STATUSES.forEach((s) => {
-      map[s.value] = leads.filter((l) => l.status === s.value).length;
+      map[s.value] = ownerLeads.filter((l) => l.status === s.value).length;
     });
     return map;
-  }, [leads]);
+  }, [ownerLeads]);
 
   return (
     <AppShell
