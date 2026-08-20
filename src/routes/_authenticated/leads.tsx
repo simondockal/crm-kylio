@@ -297,6 +297,25 @@ function LeadsPage() {
     setFollowupLead(null);
   };
 
+  const ownerLeads = useMemo(
+    () => (owner === "all" ? leads : leads.filter((l) => l.user_id === owner)),
+    [leads, owner],
+  );
+
+  const ownerTabs = useMemo(() => {
+    if (!isAdmin) return [];
+    const known = new Map(members.map((m) => [m.id, m.fullName]));
+    const ids = Array.from(new Set(leads.map((l) => l.user_id)));
+    ids.forEach((id) => {
+      if (!known.has(id)) known.set(id, id === user?.id ? user.fullName : "Neznámý uživatel");
+    });
+    return Array.from(known.entries()).map(([id, name]) => ({
+      id,
+      name: id === user?.id ? `${name} (já)` : name,
+      count: leads.filter((l) => l.user_id === id).length,
+    }));
+  }, [isAdmin, members, leads, user]);
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return ownerLeads.filter((l) => {
