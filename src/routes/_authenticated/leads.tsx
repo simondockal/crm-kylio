@@ -75,6 +75,8 @@ function LeadsPage() {
   const listOwnerId = owner !== "all" ? owner : (user?.id ?? null);
   const { lists, createList, deleteList } = useLeadLists(listOwnerId);
   const [listId, setListId] = useState<string>("all");
+  const [listDialogOpen, setListDialogOpen] = useState(false);
+  const [newListName, setNewListName] = useState("");
   const { tasks, completeTask, snoozeTask } = useTasks();
   const [followupLead, setFollowupLead] = useState<Lead | null>(null);
   const [followupValue, setFollowupValue] = useState("");
