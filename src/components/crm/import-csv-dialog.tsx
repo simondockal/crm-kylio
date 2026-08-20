@@ -21,11 +21,14 @@ import {
 import { FIELD_LABELS, guessMapping, parseCsv, type LeadField } from "@/lib/leads";
 
 export type ImportRow = Record<LeadField, string>;
+export type DuplicateMode = "skip" | "update";
 
 export function ImportCsvDialog({
   onImport,
+  existingNames,
 }: {
-  onImport: (rows: ImportRow[]) => Promise<void>;
+  onImport: (rows: ImportRow[], mode: DuplicateMode) => Promise<void>;
+  existingNames: string[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -35,6 +38,7 @@ export function ImportCsvDialog({
     {} as Record<LeadField, number>,
   );
   const [hasHeader, setHasHeader] = useState(true);
+  const [dupMode, setDupMode] = useState<DuplicateMode>("skip");
   const [busy, setBusy] = useState(false);
 
   const handleFile = async (file: File) => {
@@ -54,8 +58,8 @@ export function ImportCsvDialog({
 
   const dataRows = hasHeader ? rows : [headers, ...rows];
 
-  const runImport = async () => {
-    const mapped: ImportRow[] = dataRows.map((r) => {
+  const mapRows = (): ImportRow[] =>
+    dataRows.map((r) => {
       const out = {} as ImportRow;
       FIELD_LABELS.forEach(({ key }) => {
         const idx = mapping[key];
@@ -63,16 +67,23 @@ export function ImportCsvDialog({
       });
       return out;
     });
-    const usable = mapped.filter((r) =>
-      Object.values(r).some((v) => v.trim() !== ""),
-    );
+
+  const existing = new Set(existingNames.map((n) => n.trim().toLowerCase()).filter(Boolean));
+  const preview = mapRows().filter((r) => Object.values(r).some((v) => v.trim() !== ""));
+  const duplicates = preview.filter((r) =>
+    existing.has(r.company_name.trim().toLowerCase()),
+  ).length;
+  const fresh = preview.length - duplicates;
+
+  const runImport = async () => {
+    const usable = preview;
     if (usable.length === 0) {
       toast.error("Nenamapovali jste žádná data.");
       return;
     }
     setBusy(true);
     try {
-      await onImport(usable);
+      await onImport(usable, dupMode);
       setOpen(false);
     } finally {
       setBusy(false);
@@ -142,9 +153,28 @@ export function ImportCsvDialog({
             ))}
           </div>
 
+          <div className="space-y-2 rounded-lg border border-border bg-surface-2 p-3">
+            <Label className="text-xs">
+              Duplicity podle názvu firmy (bez ohledu na velikost písmen)
+            </Label>
+            <Select value={dupMode} onValueChange={(v) => setDupMode(v as DuplicateMode)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="skip">Přeskočit duplicitní záznamy</SelectItem>
+                <SelectItem value="update">Aktualizovat stávající data</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Nových kontaktů: <strong>{fresh}</strong> · duplicit:{" "}
+              <strong>{duplicates}</strong>
+            </p>
+          </div>
+
           <DialogFooter className="items-center sm:justify-between">
             <span className="text-xs text-muted-foreground">
-              {dataRows.length} řádků k importu
+              {preview.length} řádků k importu
             </span>
             <Button onClick={runImport} disabled={busy}>
               {busy ? "Importuji…" : "Importovat"}
