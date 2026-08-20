@@ -347,9 +347,10 @@ function LeadsPage() {
     let updated = 0;
     if (mode === "update") {
       for (const { row, lead } of dupes) {
-        const patch = Object.fromEntries(
-          Object.entries(row).filter(([, v]) => String(v).trim() !== ""),
-        );
+        const patch: Partial<Lead> = {};
+        (Object.entries(row) as [keyof ImportRow, string][]).forEach(([k, v]) => {
+          if (String(v).trim() !== "") patch[k] = v;
+        });
         const { error } = await supabase.from("leads").update(patch).eq("id", lead.id);
         if (!error) updated += 1;
       }
