@@ -54,6 +54,8 @@ export type Database = {
       }
       deals: {
         Row: {
+          caller_id: string | null
+          caller_name: string
           cold_note: string
           company_name: string
           contact_name: string
@@ -72,6 +74,8 @@ export type Database = {
           website_url: string
         }
         Insert: {
+          caller_id?: string | null
+          caller_name?: string
           cold_note?: string
           company_name?: string
           contact_name?: string
@@ -90,6 +94,8 @@ export type Database = {
           website_url?: string
         }
         Update: {
+          caller_id?: string | null
+          caller_name?: string
           cold_note?: string
           company_name?: string
           contact_name?: string
@@ -117,6 +123,78 @@ export type Database = {
           },
         ]
       }
+      lead_events: {
+        Row: {
+          actor_id: string | null
+          actor_name: string
+          created_at: string
+          deal_id: string | null
+          detail: string
+          id: string
+          lead_id: string | null
+          type: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_name?: string
+          created_at?: string
+          deal_id?: string | null
+          detail?: string
+          id?: string
+          lead_id?: string | null
+          type?: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_name?: string
+          created_at?: string
+          deal_id?: string | null
+          detail?: string
+          id?: string
+          lead_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_events_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_lists: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          position: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           call_answered: boolean
@@ -126,8 +204,12 @@ export type Database = {
           email: string
           followup_at: string | null
           id: string
+          list_id: string | null
           note: string
           phone: string
+          previous_user_id: string | null
+          reengage_at: string | null
+          rejected_at: string | null
           status: string
           updated_at: string
           user_id: string
@@ -141,8 +223,12 @@ export type Database = {
           email?: string
           followup_at?: string | null
           id?: string
+          list_id?: string | null
           note?: string
           phone?: string
+          previous_user_id?: string | null
+          reengage_at?: string | null
+          rejected_at?: string | null
           status?: string
           updated_at?: string
           user_id: string
@@ -156,14 +242,26 @@ export type Database = {
           email?: string
           followup_at?: string | null
           id?: string
+          list_id?: string | null
           note?: string
           phone?: string
+          previous_user_id?: string | null
+          reengage_at?: string | null
+          rejected_at?: string | null
           status?: string
           updated_at?: string
           user_id?: string
           website_url?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leads_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "lead_lists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -188,6 +286,69 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      tasks: {
+        Row: {
+          cadence_days: number
+          created_at: string
+          created_by: string | null
+          deal_id: string | null
+          detail: string
+          done: boolean
+          due_at: string
+          id: string
+          kind: string
+          lead_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cadence_days?: number
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          detail?: string
+          done?: boolean
+          due_at?: string
+          id?: string
+          kind?: string
+          lead_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cadence_days?: number
+          created_at?: string
+          created_by?: string | null
+          deal_id?: string | null
+          detail?: string
+          done?: boolean
+          due_at?: string
+          id?: string
+          kind?: string
+          lead_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -215,7 +376,58 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_rebook_task: {
+        Args: { _deal_id: string }
+        Returns: {
+          cadence_days: number
+          created_at: string
+          created_by: string | null
+          deal_id: string | null
+          detail: string
+          done: boolean
+          due_at: string
+          id: string
+          kind: string
+          lead_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tasks"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_lead: {
+        Args: { _lead_id: string }
+        Returns: {
+          call_answered: boolean
+          company_name: string
+          contact_name: string
+          created_at: string
+          email: string
+          followup_at: string | null
+          id: string
+          list_id: string | null
+          note: string
+          phone: string
+          previous_user_id: string | null
+          reengage_at: string | null
+          rejected_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          website_url: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "leads"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role: "admin" | "cold_caller"
