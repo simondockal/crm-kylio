@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, GripVertical, Phone, Search } from "lucide-react";
+import { CalendarClock, GripVertical, Phone, Search, UserRound } from "lucide-react";
+import { notifyTasksChanged } from "@/lib/tasks";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,14 @@ function PipelinePage() {
       toast.error("Přesun se nezdařil.");
       void load();
       return;
+    }
+    if (stage === "nedostavil_se") {
+      const { error: taskError } = await supabase.rpc("create_rebook_task", { _deal_id: id });
+      if (taskError) toast.error("Úkol se nepodařilo vytvořit: " + taskError.message);
+      else {
+        notifyTasksChanged();
+        toast.info("Úkol „Přebukovat schůzku" pro původního volajícího vytvořen.");
+      }
     }
     toast.success(`Přesunuto: ${STAGES.find((s) => s.value === stage)?.label}`);
   };
@@ -201,6 +210,12 @@ function PipelinePage() {
                             <p className="truncate text-xs text-muted-foreground">
                               {d.contact_name}
                             </p>
+                          ) : null}
+                          {d.caller_name ? (
+                            <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              <UserRound className="size-3" />
+                              {d.caller_name}
+                            </span>
                           ) : null}
                           {d.phone ? (
                             <p className="mt-1 flex items-center gap-1 font-mono text-[11px] text-muted-foreground">
