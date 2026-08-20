@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus, Plus, Search } from "lucide-react";
+import { CalendarPlus, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,18 @@ import {
 } from "@/components/ui/dialog";
 import { AppShell } from "@/components/crm/app-shell";
 import { LeadsGrid } from "@/components/crm/leads-grid";
-import { ImportCsvDialog, type ImportRow } from "@/components/crm/import-csv-dialog";
+import {
+  ImportCsvDialog,
+  type DuplicateMode,
+  type ImportRow,
+} from "@/components/crm/import-csv-dialog";
 import { MeetingDialog, type MeetingResult } from "@/components/crm/meeting-dialog";
+import { TasksPanel } from "@/components/crm/tasks-panel";
 import {
   STATUSES,
   fromLocalInputValue,
   googleCalendarUrl,
+  reengageState,
   toLocalInputValue,
   type Lead,
   type LeadStatus,
@@ -28,6 +34,8 @@ import {
 import { notifyDealsChanged, type Deal } from "@/lib/deals";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useTeamMembers } from "@/hooks/use-team-members";
+import { useLeadLists } from "@/hooks/use-lead-lists";
+import { useTasks } from "@/hooks/use-tasks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/leads")({
@@ -44,7 +52,7 @@ export const Route = createFileRoute("/_authenticated/leads")({
   component: LeadsPage,
 });
 
-type FilterKey = "all" | LeadStatus;
+type FilterKey = "all" | LeadStatus | "reengage" | "tasks";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "Všechny kontakty" },
@@ -52,6 +60,8 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "zavolat_pozdeji", label: "Zavolat později" },
   { key: "domluvena_schuzka", label: "Domluvené schůzky" },
   { key: "odmitnul", label: "Odmítnuto" },
+  { key: "reengage", label: "Re-engagement fronta" },
+  { key: "tasks", label: "Úkoly" },
 ];
 
 function LeadsPage() {
@@ -62,6 +72,10 @@ function LeadsPage() {
   const [search, setSearch] = useState("");
   const { user, isAdmin } = useCurrentUser();
   const { members } = useTeamMembers(isAdmin);
+  const listOwnerId = owner !== "all" ? owner : (user?.id ?? null);
+  const { lists, createList, deleteList } = useLeadLists(listOwnerId);
+  const [listId, setListId] = useState<string>("all");
+  const { tasks, completeTask, snoozeTask } = useTasks();
   const [followupLead, setFollowupLead] = useState<Lead | null>(null);
   const [followupValue, setFollowupValue] = useState("");
   const [meetingLead, setMeetingLead] = useState<Lead | null>(null);
