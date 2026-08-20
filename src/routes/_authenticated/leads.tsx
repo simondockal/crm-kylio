@@ -239,7 +239,7 @@ function LeadsPage() {
     const targetUserId = isAdmin && owner !== "all" ? owner : userData.user.id;
     const { data, error } = await supabase
       .from("leads")
-      .insert({ user_id: targetUserId })
+      .insert({ user_id: targetUserId, list_id: listId === "all" ? null : listId })
       .select()
       .single();
     if (error || !data) {
@@ -247,6 +247,27 @@ function LeadsPage() {
       return;
     }
     setLeads((prev) => [...prev, data as Lead]);
+  };
+
+  /** Rejected leads roll over to another caller with a 3-day cooldown. */
+  const rejectLead = async (lead: Lead) => {
+    const { data, error } = await supabase.rpc("reject_lead", { _lead_id: lead.id });
+    if (error) {
+      toast.error("Odmítnutí se nezdařilo: " + error.message);
+      return;
+    }
+    const updated = (Array.isArray(data) ? data[0] : data) as Lead | null;
+    if (updated) {
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    } else {
+      await loadLeads();
+    }
+    const handedOver = updated && updated.user_id !== lead.user_id;
+    toast.success(
+      handedOver
+        ? "Odmítnuto — lead předán dalšímu volajícímu, cooldown 3 dny."
+        : "Odmítnuto — lead je ve frontě, cooldown 3 dny.",
+    );
   };
 
   const deleteRows = async (ids: string[]) => {
@@ -296,11 +317,47 @@ function LeadsPage() {
     }
   };
 
-  const importRows = async (rows: ImportRow[]) => {
+  const importRows = async (rows: ImportRow[], mode: DuplicateMode) => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
     const targetUserId = isAdmin && owner !== "all" ? owner : userData.user.id;
-    const payload = rows.map((r) => ({ ...r, user_id: targetUserId }));
+    const key = (name: string) => name.trim().toLowerCase();
+    const existing = new Map<string, Lead>();
+    leads.forEach((l) => {
+      const k = key(l.company_name ?? "");
+      if (k && !existing.has(k)) existing.set(k, l);
+    });
+
+    const fresh: ImportRow[] = [];
+    const dupes: { row: ImportRow; lead: Lead }[] = [];
+    const seen = new Set<string>();
+    rows.forEach((r) => {
+      const k = key(r.company_name);
+      const match = k ? existing.get(k) : undefined;
+      if (match || (k && seen.has(k))) {
+        if (match) dupes.push({ row: r, lead: match });
+        return;
+      }
+      if (k) seen.add(k);
+      fresh.push(r);
+    });
+
+    let updated = 0;
+    if (mode === "update") {
+      for (const { row, lead } of dupes) {
+        const patch = Object.fromEntries(
+          Object.entries(row).filter(([, v]) => String(v).trim() !== ""),
+        );
+        const { error } = await supabase.from("leads").update(patch).eq("id", lead.id);
+        if (!error) updated += 1;
+      }
+    }
+
+    const payload = fresh.map((r) => ({
+      ...r,
+      user_id: targetUserId,
+      list_id: listId === "all" ? null : listId,
+    }));
     const inserted: Lead[] = [];
     for (let i = 0; i < payload.length; i += 500) {
       const { data, error } = await supabase
@@ -313,10 +370,12 @@ function LeadsPage() {
       }
       inserted.push(...((data ?? []) as Lead[]));
     }
-    if (inserted.length) {
-      setLeads((prev) => [...prev, ...inserted]);
-      toast.success(`Naimportováno ${inserted.length} kontaktů.`);
-    }
+    if (updated > 0) await loadLeads();
+    else if (inserted.length) setLeads((prev) => [...prev, ...inserted]);
+    toast.success(
+      `Import hotov: ${inserted.length} nových kontaktů, ${dupes.length} duplicit ` +
+        (mode === "update" ? `(aktualizováno ${updated}).` : "(přeskočeno)."),
+    );
   };
 
   const openFollowup = (lead: Lead) => {
