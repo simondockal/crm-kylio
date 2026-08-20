@@ -421,22 +421,31 @@ function LeadsPage() {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return ownerLeads.filter((l) => {
-      if (filter !== "all" && l.status !== filter) return false;
+      if (listId !== "all" && l.list_id !== listId) return false;
+      if (filter === "reengage") {
+        if (!l.reengage_at) return false;
+      } else if (filter !== "all" && filter !== "tasks" && l.status !== filter) {
+        return false;
+      }
       if (!q) return true;
       return [l.company_name, l.contact_name, l.phone, l.email]
         .join(" ")
         .toLowerCase()
         .includes(q);
     });
-  }, [ownerLeads, filter, search]);
+  }, [ownerLeads, filter, search, listId]);
 
   const counts = useMemo(() => {
-    const map: Record<string, number> = { all: ownerLeads.length };
+    const scoped =
+      listId === "all" ? ownerLeads : ownerLeads.filter((l) => l.list_id === listId);
+    const map: Record<string, number> = { all: scoped.length };
     STATUSES.forEach((s) => {
-      map[s.value] = ownerLeads.filter((l) => l.status === s.value).length;
+      map[s.value] = scoped.filter((l) => l.status === s.value).length;
     });
+    map["reengage"] = scoped.filter((l) => l.reengage_at).length;
+    map["tasks"] = tasks.length;
     return map;
-  }, [ownerLeads]);
+  }, [ownerLeads, listId, tasks]);
 
   return (
     <AppShell
