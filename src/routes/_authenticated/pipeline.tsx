@@ -93,7 +93,7 @@ function PipelinePage() {
       if (taskError) toast.error("Úkol se nepodařilo vytvořit: " + taskError.message);
       else {
         notifyTasksChanged();
-        toast.info("Úkol „Přebukovat schůzku" pro původního volajícího vytvořen.");
+        toast.info("Úkol Přebukovat schůzku byl přiřazen původnímu volajícímu.");
       }
     }
     toast.success(`Přesunuto: ${STAGES.find((s) => s.value === stage)?.label}`);

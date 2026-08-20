@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CalendarPlus, MessageSquarePlus, PhoneCall, Trash2 } from "lucide-react";
+import { CalendarPlus, History, MessageSquarePlus, PhoneCall, Trash2, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ import {
   type DealStage,
 } from "@/lib/deals";
 import { fromLocalInputValue, toLocalInputValue } from "@/lib/leads";
+import { LEAD_EVENT_LABEL, type LeadEvent } from "@/lib/leads";
+import { notifyTasksChanged } from "@/lib/tasks";
 import { MeetingDialog, type MeetingResult } from "@/components/crm/meeting-dialog";
 
 type StringField =
@@ -61,6 +63,7 @@ export function DealDrawer({
   onDelete: (id: string) => void;
 }) {
   const [notes, setNotes] = useState<DealNote[]>([]);
+  const [events, setEvents] = useState<LeadEvent[]>([]);
   const [draft, setDraft] = useState("");
   const [followupValue, setFollowupValue] = useState("");
   const [meetingOpen, setMeetingOpen] = useState(false);
@@ -77,6 +80,14 @@ export function DealDrawer({
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (active) setNotes((data ?? []) as DealNote[]);
+      });
+    supabase
+      .from("lead_events")
+      .select("*")
+      .or(`deal_id.eq.${deal.id}${deal.lead_id ? `,lead_id.eq.${deal.lead_id}` : ""}`)
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (active) setEvents((data ?? []) as LeadEvent[]);
       });
     return () => {
       active = false;
@@ -146,6 +157,12 @@ export function DealDrawer({
           <SheetDescription>
             Vytvořeno {formatDateTime(deal.created_at)}
           </SheetDescription>
+          {deal.caller_name ? (
+            <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+              <UserRound className="size-3.5" />
+              Navolal: {deal.caller_name}
+            </span>
+          ) : null}
         </SheetHeader>
 
         <div className="space-y-5 px-4 pb-8">
@@ -169,8 +186,19 @@ export function DealDrawer({
             <Select
               value={deal.stage}
               onValueChange={async (v) => {
-                onPatch(deal.id, { stage: v as DealStage });
-                await supabase.from("deals").update({ stage: v }).eq("id", deal.id);
+                const stage = v as DealStage;
+                onPatch(deal.id, { stage });
+                await supabase.from("deals").update({ stage }).eq("id", deal.id);
+                if (stage === "nedostavil_se") {
+                  const { error } = await supabase.rpc("create_rebook_task", {
+                    _deal_id: deal.id,
+                  });
+                  if (error) toast.error("Úkol se nepodařilo vytvořit: " + error.message);
+                  else {
+                    notifyTasksChanged();
+                    toast.info("Úkol Přebukovat schůzku byl přiřazen původnímu volajícímu.");
+                  }
+                }
               }}
             >
               <SelectTrigger className="h-9">
@@ -278,6 +306,32 @@ export function DealDrawer({
               {notes.length === 0 ? (
                 <li className="py-4 text-center text-xs text-muted-foreground">
                   Zatím žádné poznámky.
+                </li>
+              ) : null}
+            </ul>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5 text-xs">
+              <History className="size-3.5" />
+              Historie původu leadu
+            </Label>
+            <ul className="space-y-2">
+              {events.map((e) => (
+                <li key={e.id} className="rounded-lg border border-border bg-surface-2 p-3">
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {LEAD_EVENT_LABEL[e.type] ?? e.type}
+                      {e.actor_name ? ` — ${e.actor_name}` : ""}
+                    </span>
+                    <span className="font-mono">{formatDateTime(e.created_at)}</span>
+                  </div>
+                  {e.detail ? <p className="mt-1 text-xs">{e.detail}</p> : null}
+                </li>
+              ))}
+              {events.length === 0 ? (
+                <li className="py-3 text-center text-xs text-muted-foreground">
+                  Zatím žádná historie.
                 </li>
               ) : null}
             </ul>
