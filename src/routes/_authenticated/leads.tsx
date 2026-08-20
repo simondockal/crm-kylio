@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarPlus, Plus, Search } from "lucide-react";
+import { CalendarPlus, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,18 @@ import {
 } from "@/components/ui/dialog";
 import { AppShell } from "@/components/crm/app-shell";
 import { LeadsGrid } from "@/components/crm/leads-grid";
-import { ImportCsvDialog, type ImportRow } from "@/components/crm/import-csv-dialog";
+import {
+  ImportCsvDialog,
+  type DuplicateMode,
+  type ImportRow,
+} from "@/components/crm/import-csv-dialog";
 import { MeetingDialog, type MeetingResult } from "@/components/crm/meeting-dialog";
+import { TasksPanel } from "@/components/crm/tasks-panel";
 import {
   STATUSES,
   fromLocalInputValue,
   googleCalendarUrl,
+  reengageState,
   toLocalInputValue,
   type Lead,
   type LeadStatus,
@@ -28,6 +34,8 @@ import {
 import { notifyDealsChanged, type Deal } from "@/lib/deals";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useTeamMembers } from "@/hooks/use-team-members";
+import { useLeadLists } from "@/hooks/use-lead-lists";
+import { useTasks } from "@/hooks/use-tasks";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/leads")({
@@ -44,7 +52,7 @@ export const Route = createFileRoute("/_authenticated/leads")({
   component: LeadsPage,
 });
 
-type FilterKey = "all" | LeadStatus;
+type FilterKey = "all" | LeadStatus | "reengage" | "tasks";
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "all", label: "Všechny kontakty" },
@@ -52,6 +60,8 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: "zavolat_pozdeji", label: "Zavolat později" },
   { key: "domluvena_schuzka", label: "Domluvené schůzky" },
   { key: "odmitnul", label: "Odmítnuto" },
+  { key: "reengage", label: "Re-engagement fronta" },
+  { key: "tasks", label: "Úkoly" },
 ];
 
 function LeadsPage() {
@@ -62,6 +72,12 @@ function LeadsPage() {
   const [search, setSearch] = useState("");
   const { user, isAdmin } = useCurrentUser();
   const { members } = useTeamMembers(isAdmin);
+  const listOwnerId = owner !== "all" ? owner : (user?.id ?? null);
+  const { lists, createList, deleteList } = useLeadLists(listOwnerId);
+  const [listId, setListId] = useState<string>("all");
+  const [listDialogOpen, setListDialogOpen] = useState(false);
+  const [newListName, setNewListName] = useState("");
+  const { tasks, completeTask, snoozeTask } = useTasks();
   const [followupLead, setFollowupLead] = useState<Lead | null>(null);
   const [followupValue, setFollowupValue] = useState("");
   const [meetingLead, setMeetingLead] = useState<Lead | null>(null);
@@ -102,6 +118,15 @@ function LeadsPage() {
   }, []);
 
   const ensureDeal = useCallback(async (lead: Lead, meetingNote?: string) => {
+    const { data: authData } = await supabase.auth.getUser();
+    const actor = authData.user;
+    const callerName = actor
+      ? ((
+          await supabase.from("profiles").select("full_name, email").eq("id", actor.id).maybeSingle()
+        ).data?.full_name ||
+          actor.email ||
+          "")
+      : "";
     const { data: existing } = await supabase
       .from("deals")
       .select("id, cold_note")
@@ -110,28 +135,38 @@ function LeadsPage() {
     if (existing) {
       await supabase
         .from("deals")
-        .update({ cold_note: lead.note ?? "" })
+        .update({ cold_note: lead.note ?? "", caller_id: actor?.id ?? null, caller_name: callerName })
         .eq("id", existing.id);
       if (meetingNote?.trim()) {
-        const { data: u } = await supabase.auth.getUser();
-        if (u.user) {
+        if (actor) {
           await supabase.from("deal_notes").insert({
             deal_id: existing.id,
-            user_id: u.user.id,
-            author: u.user.email ?? "Já",
+            user_id: actor.id,
+            author: actor.email ?? "Já",
             body: meetingNote.trim(),
           });
         }
       }
+      if (actor) {
+        await supabase.from("lead_events").insert({
+          lead_id: lead.id,
+          deal_id: existing.id,
+          actor_id: actor.id,
+          actor_name: callerName,
+          type: "rebooked",
+          detail: "Schůzka znovu domluvena",
+        });
+      }
       notifyDealsChanged();
       return;
     }
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
+    if (!actor) return;
     const { data: created, error } = await supabase
       .from("deals")
       .insert({
-      user_id: userData.user.id,
+      user_id: actor.id,
+      caller_id: actor.id,
+      caller_name: callerName,
       lead_id: lead.id,
       company_name: lead.company_name,
       website_url: lead.website_url,
@@ -151,9 +186,19 @@ function LeadsPage() {
     if (created && meetingNote?.trim()) {
       await supabase.from("deal_notes").insert({
         deal_id: created.id,
-        user_id: userData.user.id,
-        author: userData.user.email ?? "Já",
+        user_id: actor.id,
+        author: actor.email ?? "Já",
         body: meetingNote.trim(),
+      });
+    }
+    if (created) {
+      await supabase.from("lead_events").insert({
+        lead_id: lead.id,
+        deal_id: created.id,
+        actor_id: actor.id,
+        actor_name: callerName,
+        type: "booked",
+        detail: "Schůzka domluvena při cold callu",
       });
     }
     notifyDealsChanged();
@@ -196,7 +241,7 @@ function LeadsPage() {
     const targetUserId = isAdmin && owner !== "all" ? owner : userData.user.id;
     const { data, error } = await supabase
       .from("leads")
-      .insert({ user_id: targetUserId })
+      .insert({ user_id: targetUserId, list_id: listId === "all" ? null : listId })
       .select()
       .single();
     if (error || !data) {
@@ -204,6 +249,27 @@ function LeadsPage() {
       return;
     }
     setLeads((prev) => [...prev, data as Lead]);
+  };
+
+  /** Rejected leads roll over to another caller with a 3-day cooldown. */
+  const rejectLead = async (lead: Lead) => {
+    const { data, error } = await supabase.rpc("reject_lead", { _lead_id: lead.id });
+    if (error) {
+      toast.error("Odmítnutí se nezdařilo: " + error.message);
+      return;
+    }
+    const updated = (Array.isArray(data) ? data[0] : data) as Lead | null;
+    if (updated) {
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    } else {
+      await loadLeads();
+    }
+    const handedOver = updated && updated.user_id !== lead.user_id;
+    toast.success(
+      handedOver
+        ? "Odmítnuto — lead předán dalšímu volajícímu, cooldown 3 dny."
+        : "Odmítnuto — lead je ve frontě, cooldown 3 dny.",
+    );
   };
 
   const deleteRows = async (ids: string[]) => {
@@ -253,11 +319,48 @@ function LeadsPage() {
     }
   };
 
-  const importRows = async (rows: ImportRow[]) => {
+  const importRows = async (rows: ImportRow[], mode: DuplicateMode) => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
     const targetUserId = isAdmin && owner !== "all" ? owner : userData.user.id;
-    const payload = rows.map((r) => ({ ...r, user_id: targetUserId }));
+    const key = (name: string) => name.trim().toLowerCase();
+    const existing = new Map<string, Lead>();
+    leads.forEach((l) => {
+      const k = key(l.company_name ?? "");
+      if (k && !existing.has(k)) existing.set(k, l);
+    });
+
+    const fresh: ImportRow[] = [];
+    const dupes: { row: ImportRow; lead: Lead }[] = [];
+    const seen = new Set<string>();
+    rows.forEach((r) => {
+      const k = key(r.company_name);
+      const match = k ? existing.get(k) : undefined;
+      if (match || (k && seen.has(k))) {
+        if (match) dupes.push({ row: r, lead: match });
+        return;
+      }
+      if (k) seen.add(k);
+      fresh.push(r);
+    });
+
+    let updated = 0;
+    if (mode === "update") {
+      for (const { row, lead } of dupes) {
+        const patch: Partial<Lead> = {};
+        (Object.entries(row) as [keyof ImportRow, string][]).forEach(([k, v]) => {
+          if (String(v).trim() !== "") patch[k] = v;
+        });
+        const { error } = await supabase.from("leads").update(patch).eq("id", lead.id);
+        if (!error) updated += 1;
+      }
+    }
+
+    const payload = fresh.map((r) => ({
+      ...r,
+      user_id: targetUserId,
+      list_id: listId === "all" ? null : listId,
+    }));
     const inserted: Lead[] = [];
     for (let i = 0; i < payload.length; i += 500) {
       const { data, error } = await supabase
@@ -270,10 +373,12 @@ function LeadsPage() {
       }
       inserted.push(...((data ?? []) as Lead[]));
     }
-    if (inserted.length) {
-      setLeads((prev) => [...prev, ...inserted]);
-      toast.success(`Naimportováno ${inserted.length} kontaktů.`);
-    }
+    if (updated > 0) await loadLeads();
+    else if (inserted.length) setLeads((prev) => [...prev, ...inserted]);
+    toast.success(
+      `Import hotov: ${inserted.length} nových kontaktů, ${dupes.length} duplicit ` +
+        (mode === "update" ? `(aktualizováno ${updated}).` : "(přeskočeno)."),
+    );
   };
 
   const openFollowup = (lead: Lead) => {
@@ -302,6 +407,10 @@ function LeadsPage() {
     [leads, owner],
   );
 
+  useEffect(() => {
+    setListId("all");
+  }, [owner]);
+
   const ownerTabs = useMemo(() => {
     if (!isAdmin) return [];
     const known = new Map(members.map((m) => [m.id, m.fullName]));
@@ -319,22 +428,31 @@ function LeadsPage() {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return ownerLeads.filter((l) => {
-      if (filter !== "all" && l.status !== filter) return false;
+      if (listId !== "all" && l.list_id !== listId) return false;
+      if (filter === "reengage") {
+        if (!l.reengage_at) return false;
+      } else if (filter !== "all" && filter !== "tasks" && l.status !== filter) {
+        return false;
+      }
       if (!q) return true;
       return [l.company_name, l.contact_name, l.phone, l.email]
         .join(" ")
         .toLowerCase()
         .includes(q);
     });
-  }, [ownerLeads, filter, search]);
+  }, [ownerLeads, filter, search, listId]);
 
   const counts = useMemo(() => {
-    const map: Record<string, number> = { all: ownerLeads.length };
+    const scoped =
+      listId === "all" ? ownerLeads : ownerLeads.filter((l) => l.list_id === listId);
+    const map: Record<string, number> = { all: scoped.length };
     STATUSES.forEach((s) => {
-      map[s.value] = ownerLeads.filter((l) => l.status === s.value).length;
+      map[s.value] = scoped.filter((l) => l.status === s.value).length;
     });
+    map["reengage"] = scoped.filter((l) => l.reengage_at).length;
+    map["tasks"] = tasks.length;
     return map;
-  }, [ownerLeads]);
+  }, [ownerLeads, listId, tasks]);
 
   return (
     <AppShell
@@ -349,7 +467,10 @@ function LeadsPage() {
               className="h-10 rounded-full border-grid-line bg-surface-elevated pl-9 text-sm text-canvas-light placeholder:text-on-dark-mute"
             />
           </div>
-          <ImportCsvDialog onImport={importRows} />
+          <ImportCsvDialog
+            onImport={importRows}
+            existingNames={leads.map((l) => l.company_name ?? "")}
+          />
           <Button size="sm" onClick={addRow}>
             <Plus className="size-4" />
             Nový řádek
@@ -381,6 +502,47 @@ function LeadsPage() {
             ))}
           </div>
         ) : null}
+        <div className="scroll-slim flex items-center gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-2 pt-2">
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-on-dark-mute">
+            Listy
+          </span>
+          {[{ id: "all", name: "Vše" }, ...lists].map((l) => (
+            <span
+              key={l.id}
+              className={cn(
+                "group flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors",
+                listId === l.id
+                  ? "bg-canvas-light text-canvas-dark"
+                  : "text-on-dark-mute hover:bg-surface-elevated hover:text-canvas-light",
+              )}
+            >
+              <button type="button" onClick={() => setListId(l.id)}>
+                {l.name}
+              </button>
+              {l.id !== "all" ? (
+                <button
+                  type="button"
+                  aria-label="Smazat list"
+                  onClick={() => {
+                    void deleteList(l.id);
+                    if (listId === l.id) setListId("all");
+                  }}
+                  className="opacity-0 transition-opacity group-hover:opacity-70 hover:opacity-100"
+                >
+                  <X className="size-3" />
+                </button>
+              ) : null}
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => setListDialogOpen(true)}
+            className="flex shrink-0 items-center gap-1 rounded-full border border-grid-line px-3 py-1.5 text-xs font-semibold text-on-dark-mute hover:text-canvas-light"
+          >
+            <Plus className="size-3" />
+            Nový list
+          </button>
+        </div>
         <div className="scroll-slim flex gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-3 pt-1">
           {FILTERS.map((f) => (
             <button
@@ -404,15 +566,57 @@ function LeadsPage() {
     >
       {loading ? (
         <div className="py-24 text-center text-sm text-muted-foreground">Načítám…</div>
+      ) : filter === "tasks" ? (
+        <TasksPanel tasks={tasks} onComplete={completeTask} onSnooze={snoozeTask} />
       ) : (
-        <LeadsGrid
-          leads={visible}
-          onPatch={patchLead}
-          onDelete={deleteRows}
-          onRequestFollowup={openFollowup}
-          onRequestMeeting={(lead) => setMeetingLead(lead)}
-        />
+        <>
+          {filter === "reengage" ? (
+            <p className="mb-3 text-xs text-muted-foreground">
+              Odmítnuté leady předané dalšímu volajícímu. Obvolávejte je až po uplynutí
+              třídenního cooldownu ({visible.filter((l) => reengageState(l)?.ready).length}{" "}
+              připraveno).
+            </p>
+          ) : null}
+          <LeadsGrid
+            leads={visible}
+            onPatch={patchLead}
+            onDelete={deleteRows}
+            onRequestFollowup={openFollowup}
+            onRequestMeeting={(lead) => setMeetingLead(lead)}
+            onRequestReject={(lead) => void rejectLead(lead)}
+          />
+        </>
       )}
+
+      <Dialog open={listDialogOpen} onOpenChange={setListDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nový list</DialogTitle>
+            <DialogDescription>
+              Vlastní list pro segmentaci kontaktů — vlastní filtrování i řazení.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={newListName}
+            onChange={(e) => setNewListName(e.target.value)}
+            placeholder="Např. Restaurace Praha"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button
+              disabled={!newListName.trim()}
+              onClick={async () => {
+                const created = await createList(newListName.trim());
+                if (created) setListId(created.id);
+                setNewListName("");
+                setListDialogOpen(false);
+              }}
+            >
+              Vytvořit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <MeetingDialog
         target={meetingLead}

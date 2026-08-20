@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import {
   STATUSES,
   formatFollowup,
+  reengageState,
   type Lead,
   type LeadField,
   type LeadStatus,
@@ -59,12 +60,14 @@ export function LeadsGrid({
   onDelete,
   onRequestFollowup,
   onRequestMeeting,
+  onRequestReject,
 }: {
   leads: Lead[];
   onPatch: (id: string, patch: Partial<Lead>) => void;
   onDelete: (ids: string[]) => Promise<boolean>;
   onRequestFollowup: (lead: Lead) => void;
   onRequestMeeting: (lead: Lead) => void;
+  onRequestReject: (lead: Lead) => void;
 }) {
   const [noteLead, setNoteLead] = useState<Lead | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -188,6 +191,10 @@ export function LeadsGrid({
                     onRequestMeeting(lead);
                     return;
                   }
+                  if (status === "odmitnul") {
+                    onRequestReject(lead);
+                    return;
+                  }
                   onPatch(lead.id, { status });
                   if (status === "zavolat_pozdeji") {
                     onRequestFollowup({ ...lead, status });
@@ -210,6 +217,23 @@ export function LeadsGrid({
                   ))}
                 </SelectContent>
               </Select>
+              {(() => {
+                const state = reengageState(lead);
+                if (!state) return null;
+                return (
+                  <span
+                    className={cn(
+                      "mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                      state.ready
+                        ? "bg-success/15 text-success"
+                        : "bg-warning/15 text-warning",
+                    )}
+                    title={`Ve frontě od ${lead.rejected_at ? formatFollowup(lead.rejected_at) : "—"}`}
+                  >
+                    {state.label}
+                  </span>
+                );
+              })()}
             </div>
 
             <div className="relative flex items-center">
