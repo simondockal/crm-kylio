@@ -26,6 +26,8 @@ import {
   type LeadStatus,
 } from "@/lib/leads";
 import { notifyDealsChanged, type Deal } from "@/lib/deals";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useTeamMembers } from "@/hooks/use-team-members";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/leads")({
@@ -56,7 +58,10 @@ function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [owner, setOwner] = useState<string>("all");
   const [search, setSearch] = useState("");
+  const { user, isAdmin } = useCurrentUser();
+  const { members } = useTeamMembers(isAdmin);
   const [followupLead, setFollowupLead] = useState<Lead | null>(null);
   const [followupValue, setFollowupValue] = useState("");
   const [meetingLead, setMeetingLead] = useState<Lead | null>(null);
@@ -188,9 +193,10 @@ function LeadsPage() {
   const addRow = async () => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
+    const targetUserId = isAdmin && owner !== "all" ? owner : userData.user.id;
     const { data, error } = await supabase
       .from("leads")
-      .insert({ user_id: userData.user.id })
+      .insert({ user_id: targetUserId })
       .select()
       .single();
     if (error || !data) {
@@ -250,7 +256,8 @@ function LeadsPage() {
   const importRows = async (rows: ImportRow[]) => {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
-    const payload = rows.map((r) => ({ ...r, user_id: userData.user!.id }));
+    const targetUserId = isAdmin && owner !== "all" ? owner : userData.user.id;
+    const payload = rows.map((r) => ({ ...r, user_id: targetUserId }));
     const inserted: Lead[] = [];
     for (let i = 0; i < payload.length; i += 500) {
       const { data, error } = await supabase
@@ -290,9 +297,28 @@ function LeadsPage() {
     setFollowupLead(null);
   };
 
+  const ownerLeads = useMemo(
+    () => (owner === "all" ? leads : leads.filter((l) => l.user_id === owner)),
+    [leads, owner],
+  );
+
+  const ownerTabs = useMemo(() => {
+    if (!isAdmin) return [];
+    const known = new Map(members.map((m) => [m.id, m.fullName]));
+    const ids = Array.from(new Set(leads.map((l) => l.user_id)));
+    ids.forEach((id) => {
+      if (!known.has(id)) known.set(id, id === user?.id ? user.fullName : "Neznámý uživatel");
+    });
+    return Array.from(known.entries()).map(([id, name]) => ({
+      id,
+      name: id === user?.id ? `${name} (já)` : name,
+      count: leads.filter((l) => l.user_id === id).length,
+    }));
+  }, [isAdmin, members, leads, user]);
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return leads.filter((l) => {
+    return ownerLeads.filter((l) => {
       if (filter !== "all" && l.status !== filter) return false;
       if (!q) return true;
       return [l.company_name, l.contact_name, l.phone, l.email]
@@ -300,15 +326,15 @@ function LeadsPage() {
         .toLowerCase()
         .includes(q);
     });
-  }, [leads, filter, search]);
+  }, [ownerLeads, filter, search]);
 
   const counts = useMemo(() => {
-    const map: Record<string, number> = { all: leads.length };
+    const map: Record<string, number> = { all: ownerLeads.length };
     STATUSES.forEach((s) => {
-      map[s.value] = leads.filter((l) => l.status === s.value).length;
+      map[s.value] = ownerLeads.filter((l) => l.status === s.value).length;
     });
     return map;
-  }, [leads]);
+  }, [ownerLeads]);
 
   return (
     <AppShell
@@ -331,6 +357,30 @@ function LeadsPage() {
         </>
       }
       filters={
+        <>
+        {isAdmin && ownerTabs.length > 0 ? (
+          <div className="scroll-slim flex items-center gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-2 pt-2">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-on-dark-mute">
+              Tabulka
+            </span>
+            {[{ id: "all", name: "Všichni", count: leads.length }, ...ownerTabs].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setOwner(t.id)}
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors",
+                  owner === t.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-on-dark-mute hover:bg-surface-elevated hover:text-canvas-light",
+                )}
+              >
+                {t.name}
+                <span className="font-mono opacity-70">{t.count}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="scroll-slim flex gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-3 pt-1">
           {FILTERS.map((f) => (
             <button
@@ -349,6 +399,7 @@ function LeadsPage() {
             </button>
           ))}
         </div>
+        </>
       }
     >
       {loading ? (
