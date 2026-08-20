@@ -116,6 +116,15 @@ function LeadsPage() {
   }, []);
 
   const ensureDeal = useCallback(async (lead: Lead, meetingNote?: string) => {
+    const { data: authData } = await supabase.auth.getUser();
+    const actor = authData.user;
+    const callerName = actor
+      ? ((
+          await supabase.from("profiles").select("full_name, email").eq("id", actor.id).maybeSingle()
+        ).data?.full_name ||
+          actor.email ||
+          "")
+      : "";
     const { data: existing } = await supabase
       .from("deals")
       .select("id, cold_note")
@@ -124,28 +133,38 @@ function LeadsPage() {
     if (existing) {
       await supabase
         .from("deals")
-        .update({ cold_note: lead.note ?? "" })
+        .update({ cold_note: lead.note ?? "", caller_id: actor?.id ?? null, caller_name: callerName })
         .eq("id", existing.id);
       if (meetingNote?.trim()) {
-        const { data: u } = await supabase.auth.getUser();
-        if (u.user) {
+        if (actor) {
           await supabase.from("deal_notes").insert({
             deal_id: existing.id,
-            user_id: u.user.id,
-            author: u.user.email ?? "Já",
+            user_id: actor.id,
+            author: actor.email ?? "Já",
             body: meetingNote.trim(),
           });
         }
       }
+      if (actor) {
+        await supabase.from("lead_events").insert({
+          lead_id: lead.id,
+          deal_id: existing.id,
+          actor_id: actor.id,
+          actor_name: callerName,
+          type: "rebooked",
+          detail: "Schůzka znovu domluvena",
+        });
+      }
       notifyDealsChanged();
       return;
     }
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
+    if (!actor) return;
     const { data: created, error } = await supabase
       .from("deals")
       .insert({
-      user_id: userData.user.id,
+      user_id: actor.id,
+      caller_id: actor.id,
+      caller_name: callerName,
       lead_id: lead.id,
       company_name: lead.company_name,
       website_url: lead.website_url,
@@ -165,9 +184,19 @@ function LeadsPage() {
     if (created && meetingNote?.trim()) {
       await supabase.from("deal_notes").insert({
         deal_id: created.id,
-        user_id: userData.user.id,
-        author: userData.user.email ?? "Já",
+        user_id: actor.id,
+        author: actor.email ?? "Já",
         body: meetingNote.trim(),
+      });
+    }
+    if (created) {
+      await supabase.from("lead_events").insert({
+        lead_id: lead.id,
+        deal_id: created.id,
+        actor_id: actor.id,
+        actor_name: callerName,
+        type: "booked",
+        detail: "Schůzka domluvena při cold callu",
       });
     }
     notifyDealsChanged();
