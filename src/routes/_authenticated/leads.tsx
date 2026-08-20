@@ -460,7 +460,10 @@ function LeadsPage() {
               className="h-10 rounded-full border-grid-line bg-surface-elevated pl-9 text-sm text-canvas-light placeholder:text-on-dark-mute"
             />
           </div>
-          <ImportCsvDialog onImport={importRows} />
+          <ImportCsvDialog
+            onImport={importRows}
+            existingNames={leads.map((l) => l.company_name ?? "")}
+          />
           <Button size="sm" onClick={addRow}>
             <Plus className="size-4" />
             Nový řádek
@@ -492,6 +495,47 @@ function LeadsPage() {
             ))}
           </div>
         ) : null}
+        <div className="scroll-slim flex items-center gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-2 pt-2">
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-on-dark-mute">
+            Listy
+          </span>
+          {[{ id: "all", name: "Vše" }, ...lists].map((l) => (
+            <span
+              key={l.id}
+              className={cn(
+                "group flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors",
+                listId === l.id
+                  ? "bg-canvas-light text-canvas-dark"
+                  : "text-on-dark-mute hover:bg-surface-elevated hover:text-canvas-light",
+              )}
+            >
+              <button type="button" onClick={() => setListId(l.id)}>
+                {l.name}
+              </button>
+              {l.id !== "all" ? (
+                <button
+                  type="button"
+                  aria-label="Smazat list"
+                  onClick={() => {
+                    void deleteList(l.id);
+                    if (listId === l.id) setListId("all");
+                  }}
+                  className="opacity-0 transition-opacity group-hover:opacity-70 hover:opacity-100"
+                >
+                  <X className="size-3" />
+                </button>
+              ) : null}
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => setListDialogOpen(true)}
+            className="flex shrink-0 items-center gap-1 rounded-full border border-grid-line px-3 py-1.5 text-xs font-semibold text-on-dark-mute hover:text-canvas-light"
+          >
+            <Plus className="size-3" />
+            Nový list
+          </button>
+        </div>
         <div className="scroll-slim flex gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-3 pt-1">
           {FILTERS.map((f) => (
             <button
@@ -515,15 +559,57 @@ function LeadsPage() {
     >
       {loading ? (
         <div className="py-24 text-center text-sm text-muted-foreground">Načítám…</div>
+      ) : filter === "tasks" ? (
+        <TasksPanel tasks={tasks} onComplete={completeTask} onSnooze={snoozeTask} />
       ) : (
-        <LeadsGrid
-          leads={visible}
-          onPatch={patchLead}
-          onDelete={deleteRows}
-          onRequestFollowup={openFollowup}
-          onRequestMeeting={(lead) => setMeetingLead(lead)}
-        />
+        <>
+          {filter === "reengage" ? (
+            <p className="mb-3 text-xs text-muted-foreground">
+              Odmítnuté leady předané dalšímu volajícímu. Obvolávejte je až po uplynutí
+              třídenního cooldownu ({visible.filter((l) => reengageState(l)?.ready).length}{" "}
+              připraveno).
+            </p>
+          ) : null}
+          <LeadsGrid
+            leads={visible}
+            onPatch={patchLead}
+            onDelete={deleteRows}
+            onRequestFollowup={openFollowup}
+            onRequestMeeting={(lead) => setMeetingLead(lead)}
+            onRequestReject={(lead) => void rejectLead(lead)}
+          />
+        </>
       )}
+
+      <Dialog open={listDialogOpen} onOpenChange={setListDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nový list</DialogTitle>
+            <DialogDescription>
+              Vlastní list pro segmentaci kontaktů — vlastní filtrování i řazení.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            value={newListName}
+            onChange={(e) => setNewListName(e.target.value)}
+            placeholder="Např. Restaurace Praha"
+            autoFocus
+          />
+          <DialogFooter>
+            <Button
+              disabled={!newListName.trim()}
+              onClick={async () => {
+                const created = await createList(newListName.trim());
+                if (created) setListId(created.id);
+                setNewListName("");
+                setListDialogOpen(false);
+              }}
+            >
+              Vytvořit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <MeetingDialog
         target={meetingLead}
