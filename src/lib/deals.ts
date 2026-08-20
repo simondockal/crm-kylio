@@ -10,6 +10,8 @@ export type Deal = {
   id: string;
   user_id: string;
   lead_id: string | null;
+  caller_id: string | null;
+  caller_name: string;
   company_name: string;
   website_url: string;
   contact_name: string;

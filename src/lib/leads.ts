@@ -16,9 +16,58 @@ export type Lead = {
   status: LeadStatus;
   note: string;
   followup_at: string | null;
+  list_id: string | null;
+  rejected_at: string | null;
+  reengage_at: string | null;
+  previous_user_id: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type LeadList = {
+  id: string;
+  user_id: string;
+  name: string;
+  position: number;
+  created_at: string;
+};
+
+export type LeadEvent = {
+  id: string;
+  lead_id: string | null;
+  deal_id: string | null;
+  actor_id: string | null;
+  actor_name: string;
+  type: string;
+  detail: string;
+  created_at: string;
+};
+
+export const LEAD_EVENT_LABEL: Record<string, string> = {
+  created: "Vytvořeno",
+  booked: "Schůzka domluvena",
+  rejected: "Odmítnuto",
+  no_show: "Nedostavil se",
+  rebooked: "Přebukováno",
+  note: "Poznámka",
+};
+
+/** Re-engagement cooldown state for a rejected lead. */
+export function reengageState(lead: Pick<Lead, "reengage_at">): {
+  ready: boolean;
+  label: string;
+} | null {
+  if (!lead.reengage_at) return null;
+  const target = new Date(lead.reengage_at).getTime();
+  const diff = target - Date.now();
+  if (diff <= 0) return { ready: true, label: "Připraveno k obvolání" };
+  const hours = Math.floor(diff / 3_600_000);
+  const days = Math.floor(hours / 24);
+  return {
+    ready: false,
+    label: days > 0 ? `Zbývá ${days} d ${hours % 24} h` : `Zbývá ${hours} h`,
+  };
+}
 
 export const STATUSES: { value: LeadStatus; label: string; tone: string }[] = [
   { value: "nevolano", label: "Nevoláno", tone: "muted" },
