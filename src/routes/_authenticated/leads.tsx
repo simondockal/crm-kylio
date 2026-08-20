@@ -406,6 +406,10 @@ function LeadsPage() {
     [leads, owner],
   );
 
+  useEffect(() => {
+    setListId("all");
+  }, [owner]);
+
   const ownerTabs = useMemo(() => {
     if (!isAdmin) return [];
     const known = new Map(members.map((m) => [m.id, m.fullName]));
