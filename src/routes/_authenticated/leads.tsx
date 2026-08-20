@@ -357,6 +357,30 @@ function LeadsPage() {
         </>
       }
       filters={
+        <>
+        {isAdmin && ownerTabs.length > 0 ? (
+          <div className="scroll-slim flex items-center gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-2 pt-2">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-on-dark-mute">
+              Tabulka
+            </span>
+            {[{ id: "all", name: "Všichni", count: leads.length }, ...ownerTabs].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setOwner(t.id)}
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold transition-colors",
+                  owner === t.id
+                    ? "bg-primary text-primary-foreground"
+                    : "text-on-dark-mute hover:bg-surface-elevated hover:text-canvas-light",
+                )}
+              >
+                {t.name}
+                <span className="font-mono opacity-70">{t.count}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="scroll-slim flex gap-2 overflow-x-auto border-t border-grid-line bg-canvas-dark px-6 pb-3 pt-1">
           {FILTERS.map((f) => (
             <button
@@ -375,6 +399,7 @@ function LeadsPage() {
             </button>
           ))}
         </div>
+        </>
       }
     >
       {loading ? (
