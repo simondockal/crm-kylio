@@ -70,7 +70,7 @@ export function AppShell({
         {filters}
         <FollowupBanner />
       </header>
-      <main className="light-workspace min-h-[calc(100vh-4rem)] bg-canvas-light p-4 text-foreground sm:p-6 lg:p-8">{children}</main>
+      <main className="min-h-[calc(100vh-4rem)] bg-background p-4 text-foreground sm:p-6 lg:p-8">{children}</main>
     </div>
   );
 }

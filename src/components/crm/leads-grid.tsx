@@ -48,7 +48,7 @@ const TEXT_COLS: { key: LeadField; placeholder: string; mono?: boolean }[] = [
 ];
 
 const STATUS_CLASS: Record<LeadStatus, string> = {
-  nevolano: "text-canvas-dark",
+  nevolano: "text-muted-foreground",
   zavolat_pozdeji: "text-warning",
   domluvena_schuzka: "text-success",
   odmitnul: "text-destructive",
@@ -116,7 +116,7 @@ export function LeadsGrid({
     <div className="scroll-slim overflow-x-auto rounded-[20px] border border-border bg-surface">
       <div className="min-w-max">
         <div
-           className="grid border-b border-grid-line bg-surface-2 text-[11px] font-semibold uppercase text-canvas-dark"
+           className="grid border-b border-grid-line bg-surface-2 text-[11px] font-semibold uppercase text-muted-foreground"
           style={{ gridTemplateColumns: COLUMNS }}
         >
           <div className="flex items-center gap-2 px-2.5 py-2.5">
@@ -139,10 +139,10 @@ export function LeadsGrid({
         {leads.map((lead, rowIndex) => (
           <div
             key={lead.id}
-            className="group grid min-h-11 items-center border-b border-grid-line text-canvas-dark last:border-b-0 hover:bg-surface-2/70"
+            className="group grid min-h-11 items-center border-b border-grid-line text-foreground last:border-b-0 hover:bg-surface-2/70"
             style={{ gridTemplateColumns: COLUMNS }}
           >
-            <div className="flex items-center gap-2 px-2.5 font-mono text-[11px] text-canvas-dark">
+            <div className="flex items-center gap-2 px-2.5 font-mono text-[11px] text-muted-foreground">
               <Checkbox
                 checked={selected.includes(lead.id)}
                 onCheckedChange={() => toggle(lead.id)}
@@ -264,8 +264,8 @@ export function LeadsGrid({
               type="button"
               onClick={() => onRequestFollowup(lead)}
               className={cn(
-                "flex h-9 items-center gap-1.5 px-2.5 text-left text-xs hover:text-foreground",
-                lead.followup_at ? "font-mono text-canvas-dark" : "text-canvas-dark",
+                "flex h-9 items-center gap-1.5 px-2.5 text-left text-xs text-muted-foreground hover:text-foreground",
+                lead.followup_at && "font-mono",
               )}
             >
               <CalendarClock className="size-3.5 shrink-0" />

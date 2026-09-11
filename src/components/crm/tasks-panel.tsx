@@ -35,7 +35,7 @@ export function TasksPanel({
             )}
           >
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-canvas-dark">{t.title}</p>
+              <p className="text-sm font-semibold text-foreground">{t.title}</p>
               <p className="truncate text-xs text-muted-foreground">{t.detail}</p>
             </div>
             <span
