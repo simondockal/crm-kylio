@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { CalendarClock, Maximize2, Trash2 } from "lucide-react";
+import { useState, type KeyboardEvent } from "react";
+import { CalendarClock, Check, Copy, Maximize2, PhoneMissed, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,22 +37,39 @@ import {
   type LeadField,
   type LeadStatus,
 } from "@/lib/leads";
+import { useCallAttempts } from "@/hooks/use-call-attempts";
 
 const COLUMNS = "76px 230px 190px 180px 150px 210px 96px 180px 280px 170px 44px";
 
-const TEXT_COLS: { key: LeadField; placeholder: string; mono?: boolean }[] = [
-  { key: "company_name", placeholder: "Název firmy" },
+const TEXT_COLS: {
+  key: LeadField;
+  placeholder: string;
+  mono?: boolean;
+  addMore?: boolean;
+  copyable?: boolean;
+}[] = [
+  { key: "company_name", placeholder: "Název firmy", copyable: true },
   { key: "website_url", placeholder: "www…" },
-  { key: "contact_name", placeholder: "Jméno" },
-  { key: "phone", placeholder: "+420…", mono: true },
+  { key: "contact_name", placeholder: "Jméno", addMore: true },
+  { key: "phone", placeholder: "+420…", mono: true, addMore: true, copyable: true },
   { key: "email", placeholder: "@" },
 ];
 
+/** Note is the last keyboard-navigable cell, one past the last TEXT_COLS index. */
+const LAST_COL_INDEX = TEXT_COLS.length;
+
 const STATUS_CLASS: Record<LeadStatus, string> = {
-  nevolano: "text-muted-foreground",
-  zavolat_pozdeji: "text-warning",
-  domluvena_schuzka: "text-success",
-  odmitnul: "text-destructive",
+  nevolano: "bg-muted text-muted-foreground",
+  zavolat_pozdeji: "bg-warning/15 text-warning",
+  domluvena_schuzka: "bg-success/15 text-success",
+  odmitnul: "bg-destructive/15 text-destructive",
+};
+
+const STATUS_DOT_CLASS: Record<LeadStatus, string> = {
+  nevolano: "bg-muted-foreground",
+  zavolat_pozdeji: "bg-warning",
+  domluvena_schuzka: "bg-success",
+  odmitnul: "bg-destructive",
 };
 
 export function LeadsGrid({
@@ -72,6 +90,19 @@ export function LeadsGrid({
   const [noteLead, setNoteLead] = useState<Lead | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [pendingDelete, setPendingDelete] = useState<string[] | null>(null);
+  const [copiedCell, setCopiedCell] = useState<string | null>(null);
+  const { attempts, bump, clear } = useCallAttempts();
+
+  const copyValue = async (cellId: string, value: string) => {
+    if (!value.trim()) return;
+    try {
+      await navigator.clipboard.writeText(value.trim());
+      setCopiedCell(cellId);
+      setTimeout(() => setCopiedCell((c) => (c === cellId ? null : c)), 1200);
+    } catch {
+      toast.error("Kopírování se nezdařilo.");
+    }
+  };
 
   const allSelected = leads.length > 0 && selected.length === leads.length;
   const toggle = (id: string) =>
@@ -92,6 +123,54 @@ export function LeadsGrid({
     );
     el?.focus();
     el?.select();
+  };
+
+  const focusCellAtEnd = (row: number, col: number) => {
+    const el = document.querySelector<HTMLInputElement>(
+      `[data-cell="${row}-${col}"]`,
+    );
+    el?.focus();
+    el?.setSelectionRange(el.value.length, el.value.length);
+  };
+
+  const handleCellKeyDown = (
+    e: KeyboardEvent<HTMLInputElement>,
+    row: number,
+    col: number,
+  ) => {
+    const input = e.currentTarget;
+    const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
+    const atEnd =
+      input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      focusCell(row + 1, col);
+    } else if (e.key === "Escape") {
+      input.blur();
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (col > 0) focusCell(row, col - 1);
+        else if (row > 0) focusCell(row - 1, LAST_COL_INDEX);
+      } else if (col < LAST_COL_INDEX) {
+        focusCell(row, col + 1);
+      } else {
+        focusCell(row + 1, 0);
+      }
+    } else if (e.key === "ArrowUp" && e.altKey) {
+      e.preventDefault();
+      focusCell(row - 1, col);
+    } else if (e.key === "ArrowDown" && e.altKey) {
+      e.preventDefault();
+      focusCell(row + 1, col);
+    } else if (e.key === "ArrowLeft" && atStart && col > 0) {
+      e.preventDefault();
+      focusCellAtEnd(row, col - 1);
+    } else if (e.key === "ArrowRight" && atEnd && col < LAST_COL_INDEX) {
+      e.preventDefault();
+      focusCell(row, col + 1);
+    }
   };
 
   return (
@@ -151,35 +230,95 @@ export function LeadsGrid({
               {rowIndex + 1}
             </div>
 
-            {TEXT_COLS.map((col, colIndex) => (
-              <input
-                key={col.key}
-                data-cell={`${rowIndex}-${colIndex}`}
-                className={cn("grid-cell grid-cell-focus truncate", col.mono && "font-mono")}
-                placeholder={col.placeholder}
-                value={lead[col.key] ?? ""}
-                onChange={(e) => onPatch(lead.id, { [col.key]: e.target.value } as Partial<Lead>)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    focusCell(rowIndex + 1, colIndex);
-                  } else if (e.key === "ArrowUp" && e.altKey) {
-                    e.preventDefault();
-                    focusCell(rowIndex - 1, colIndex);
-                  } else if (e.key === "ArrowDown" && e.altKey) {
-                    e.preventDefault();
-                    focusCell(rowIndex + 1, colIndex);
-                  }
-                }}
-              />
-            ))}
+            {TEXT_COLS.map((col, colIndex) => {
+              const buttonCount = (col.addMore ? 1 : 0) + (col.copyable ? 1 : 0);
+              const input = (
+                <input
+                  key={col.key}
+                  data-cell={`${rowIndex}-${colIndex}`}
+                  className={cn(
+                    "grid-cell grid-cell-focus truncate",
+                    col.mono && "font-mono",
+                    buttonCount === 1 && "pr-7",
+                    buttonCount === 2 && "pr-12",
+                  )}
+                  placeholder={col.placeholder}
+                  value={lead[col.key] ?? ""}
+                  onChange={(e) => onPatch(lead.id, { [col.key]: e.target.value } as Partial<Lead>)}
+                  onKeyDown={(e) => handleCellKeyDown(e, rowIndex, colIndex)}
+                />
+              );
+              if (buttonCount === 0) return input;
+              const cellId = `${lead.id}-${col.key}`;
+              const isCopied = copiedCell === cellId;
+              return (
+                <div key={col.key} className="group/cell relative flex items-center">
+                  {input}
+                  <div className="absolute right-1.5 flex items-center gap-0.5">
+                    {col.copyable ? (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => void copyValue(cellId, lead[col.key] ?? "")}
+                        title="Kopírovat"
+                        className={cn(
+                          "text-muted-foreground transition-opacity hover:text-foreground",
+                          isCopied ? "text-success opacity-100" : "opacity-0 group-hover/cell:opacity-100",
+                        )}
+                      >
+                        {isCopied ? (
+                          <Check className="size-3.5" />
+                        ) : (
+                          <Copy className="size-3.5" />
+                        )}
+                      </button>
+                    ) : null}
+                    {col.addMore ? (
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => {
+                          const current = lead[col.key] ?? "";
+                          const next = current.trim() ? `${current.trim()} / ` : "";
+                          onPatch(lead.id, { [col.key]: next } as Partial<Lead>);
+                          requestAnimationFrame(() => focusCellAtEnd(rowIndex, colIndex));
+                        }}
+                        title={col.key === "phone" ? "Přidat další číslo" : "Přidat další kontakt"}
+                        className="text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/cell:opacity-100"
+                      >
+                        <Plus className="size-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
 
-            <div className="flex justify-center px-2.5">
+            <div className="flex items-center justify-center gap-1.5 px-2.5">
               <Switch
                 checked={lead.call_answered}
-                onCheckedChange={(v) => onPatch(lead.id, { call_answered: v })}
+                onCheckedChange={(v) => {
+                  onPatch(lead.id, { call_answered: v });
+                  if (v) clear(lead.id);
+                }}
                 aria-label="Dovolal se"
               />
+              {!lead.call_answered ? (
+                <button
+                  type="button"
+                  onClick={() => bump(lead.id)}
+                  title="Zaznamenat nedovolaný pokus"
+                  className={cn(
+                    "flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition-colors",
+                    attempts[lead.id]
+                      ? "bg-warning/15 text-warning hover:bg-warning/25"
+                      : "text-muted-foreground opacity-0 hover:bg-muted hover:text-foreground group-hover:opacity-100",
+                  )}
+                >
+                  <PhoneMissed className="size-3" />
+                  {attempts[lead.id] ? `${attempts[lead.id]}×` : null}
+                </button>
+              ) : null}
             </div>
 
             <div className="px-1.5">
@@ -203,10 +342,11 @@ export function LeadsGrid({
               >
                 <SelectTrigger
                   className={cn(
-                    "h-7 w-full border-0 bg-transparent text-xs font-medium shadow-none focus-visible:ring-1",
+                    "h-6 w-fit max-w-full justify-start gap-1.5 rounded-full border-0 px-2.5 py-0 text-[11px] font-semibold shadow-none ring-offset-0 ring-current focus:ring-0 focus-visible:ring-1 focus-visible:ring-offset-0 [&>svg]:ml-1 [&>svg]:size-3",
                     STATUS_CLASS[lead.status],
                   )}
                 >
+                  <span className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT_CLASS[lead.status])} />
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -243,12 +383,7 @@ export function LeadsGrid({
                 placeholder="Poznámka z hovoru…"
                 value={lead.note ?? ""}
                 onChange={(e) => onPatch(lead.id, { note: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    focusCell(rowIndex + 1, 5);
-                  }
-                }}
+                onKeyDown={(e) => handleCellKeyDown(e, rowIndex, 5)}
               />
               <button
                 type="button"
