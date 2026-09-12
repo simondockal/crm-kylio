@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { fromLocalInputValue, toLocalInputValue } from "@/lib/leads";
+import { followupPresets, fromLocalInputValue, toLocalInputValue } from "@/lib/leads";
 import { DEFAULT_HOST, meetingCalendarUrl } from "@/lib/deals";
 
 export type MeetingTarget = {
@@ -99,6 +99,23 @@ export function MeetingDialog({
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="flex flex-wrap gap-1.5">
+            {followupPresets().map((preset) => (
+              <Button
+                key={preset.label}
+                type="button"
+                size="sm"
+                variant={start === preset.value ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => {
+                  setStart(preset.value);
+                  setEnd(plusMinutes(preset.value, 60));
+                }}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Začátek</Label>

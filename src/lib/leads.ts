@@ -262,3 +262,37 @@ export function formatFollowup(iso: string | null): string {
   const d = new Date(iso);
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+function atHour(d: Date, hour: number): Date {
+  const next = new Date(d);
+  next.setHours(hour, 0, 0, 0);
+  return next;
+}
+
+function addDays(d: Date, days: number): Date {
+  const next = new Date(d);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function nextWeekday(d: Date, weekday: number): Date {
+  const next = new Date(d);
+  const diff = (weekday - next.getDay() + 7) % 7 || 7;
+  next.setDate(next.getDate() + diff);
+  return next;
+}
+
+/** One-click follow-up time presets for the "Zavolat později" dialog. */
+export function followupPresets(now: Date = new Date()): { label: string; value: string }[] {
+  const inOneHour = new Date(now.getTime() + 60 * 60 * 1000);
+  const tomorrowMorning = atHour(addDays(now, 1), 9);
+  const dayAfterMorning = atHour(addDays(now, 2), 9);
+  const mondayMorning = atHour(nextWeekday(now, 1), 9);
+
+  return [
+    { label: "Za hodinu", value: toLocalInputValue(inOneHour.toISOString()) },
+    { label: "Zítra ráno", value: toLocalInputValue(tomorrowMorning.toISOString()) },
+    { label: "Pozítří ráno", value: toLocalInputValue(dayAfterMorning.toISOString()) },
+    { label: "Příští pondělí", value: toLocalInputValue(mondayMorning.toISOString()) },
+  ];
+}

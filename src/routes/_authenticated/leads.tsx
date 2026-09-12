@@ -13,8 +13,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AppShell } from "@/components/crm/app-shell";
 import { LeadsGrid } from "@/components/crm/leads-grid";
+import { MyStatsPanel } from "@/components/crm/my-stats-panel";
 import {
   ImportCsvDialog,
   type DuplicateMode,
@@ -24,6 +35,7 @@ import { MeetingDialog, type MeetingResult } from "@/components/crm/meeting-dial
 import { TasksPanel } from "@/components/crm/tasks-panel";
 import {
   STATUSES,
+  followupPresets,
   fromLocalInputValue,
   googleCalendarUrl,
   reengageState,
@@ -77,6 +89,9 @@ function LeadsPage() {
   const [listId, setListId] = useState<string>("all");
   const [listDialogOpen, setListDialogOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
+  const [pendingDeleteList, setPendingDeleteList] = useState<{ id: string; name: string } | null>(
+    null,
+  );
   const { tasks, completeTask, snoozeTask } = useTasks();
   const [followupLead, setFollowupLead] = useState<Lead | null>(null);
   const [followupValue, setFollowupValue] = useState("");
@@ -88,7 +103,10 @@ function LeadsPage() {
     const { data, error } = await supabase
       .from("leads")
       .select("*")
-      .order("created_at", { ascending: true });
+      // id as a tie-breaker: bulk CSV imports can share the same created_at
+      // timestamp, and Postgres doesn't guarantee stable ordering among ties.
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
     if (error) throw error;
     const loaded = (data ?? []) as Lead[];
     setLeads(loaded);
@@ -375,10 +393,26 @@ function LeadsPage() {
     }
     if (updated > 0) await loadLeads();
     else if (inserted.length) setLeads((prev) => [...prev, ...inserted]);
+    const insertedIds = inserted.map((l) => l.id);
     toast.success(
       `Import hotov: ${inserted.length} nových kontaktů, ${dupes.length} duplicit ` +
         (mode === "update" ? `(aktualizováno ${updated}).` : "(přeskočeno)."),
+      insertedIds.length > 0
+        ? { action: { label: "Vrátit zpět", onClick: () => void undoImport(insertedIds) } }
+        : undefined,
     );
+    return { insertedIds };
+  };
+
+  const undoImport = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const { error } = await supabase.from("leads").delete().in("id", ids);
+    if (error) {
+      toast.error("Vrácení importu selhalo: " + error.message);
+      return;
+    }
+    setLeads((prev) => prev.filter((l) => !ids.includes(l.id)));
+    toast.success("Import vrácen zpět.");
   };
 
   const openFollowup = (lead: Lead) => {
@@ -523,10 +557,7 @@ function LeadsPage() {
                 <button
                   type="button"
                   aria-label="Smazat list"
-                  onClick={() => {
-                    void deleteList(l.id);
-                    if (listId === l.id) setListId("all");
-                  }}
+                  onClick={() => setPendingDeleteList({ id: l.id, name: l.name })}
                   className="opacity-0 transition-opacity group-hover:opacity-70 hover:opacity-100"
                 >
                   <X className="size-3" />
@@ -570,6 +601,7 @@ function LeadsPage() {
         <TasksPanel tasks={tasks} onComplete={completeTask} onSnooze={snoozeTask} />
       ) : (
         <>
+          <MyStatsPanel leads={ownerLeads} />
           {filter === "reengage" ? (
             <p className="mb-3 text-xs text-muted-foreground">
               Odmítnuté leady předané dalšímu volajícímu. Obvolávejte je až po uplynutí
@@ -618,6 +650,34 @@ function LeadsPage() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog
+        open={!!pendingDeleteList}
+        onOpenChange={(o) => !o && setPendingDeleteList(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Smazat list „{pendingDeleteList?.name}“?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Kontakty v tomto listu se nesmažou, jen ztratí zařazení a přesunou se do „Vše“.
+              Samotný list nelze vrátit zpět.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Zrušit</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (!pendingDeleteList) return;
+                void deleteList(pendingDeleteList.id);
+                if (listId === pendingDeleteList.id) setListId("all");
+                setPendingDeleteList(null);
+              }}
+            >
+              Smazat list
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <MeetingDialog
         target={meetingLead}
         onClose={() => setMeetingLead(null)}
@@ -632,6 +692,20 @@ function LeadsPage() {
               Nastavte termín pro {followupLead?.contact_name || followupLead?.company_name || "kontakt"}.
             </DialogDescription>
           </DialogHeader>
+          <div className="flex flex-wrap gap-1.5">
+            {followupPresets().map((preset) => (
+              <Button
+                key={preset.label}
+                type="button"
+                size="sm"
+                variant={followupValue === preset.value ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => setFollowupValue(preset.value)}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
           <Input
             type="datetime-local"
             value={followupValue}
