@@ -152,25 +152,51 @@ function detectDelimiter(text: string): string {
   return counts[0].n > 1 ? counts[0].d : ",";
 }
 
-const AUTO_MAP: Record<LeadField, string[]> = {
-  company_name: ["nazev", "název", "firma", "company", "obchodni", "obchodní", "jmeno firmy", "legal"],
+/**
+ * Fields Merk CSV exports never reliably contain — they're filled in by hand
+ * while calling, so auto-mapping them risks silently importing stale/wrong data.
+ * Email is excluded: unlike phone/contact name, Merk's email column is reliable.
+ */
+const NEVER_AUTO_MAP: LeadField[] = ["contact_name", "phone", "note"];
+
+const AUTO_MAP: Partial<Record<LeadField, string[]>> = {
+  company_name: [
+    "subject",
+    "nazev",
+    "název",
+    "firma",
+    "company",
+    "obchodni",
+    "obchodní",
+    "jmeno firmy",
+    "legal",
+  ],
   website_url: ["web", "www", "url", "stranky", "stránky", "domain"],
-  contact_name: ["kontakt", "osoba", "jednatel", "majitel", "owner", "contact", "jmeno", "jméno"],
-  phone: ["telefon", "tel", "phone", "mobil"],
   email: ["email", "e-mail", "mail"],
-  note: ["poznamka", "poznámka", "note", "popis"],
 };
 
 export function guessMapping(headers: string[]): Record<LeadField, number> {
   const result = {} as Record<LeadField, number>;
   const norm = headers.map((h) => h.toLowerCase().trim());
-  (Object.keys(AUTO_MAP) as LeadField[]).forEach((field) => {
-    const idx = norm.findIndex((h) =>
-      AUTO_MAP[field].some((needle) => h.includes(needle)),
-    );
-    result[field] = idx;
+  FIELD_LABELS.forEach(({ key }) => {
+    if (NEVER_AUTO_MAP.includes(key)) {
+      result[key] = -1;
+      return;
+    }
+    const needles = AUTO_MAP[key] ?? [];
+    result[key] = norm.findIndex((h) => needles.some((needle) => h.includes(needle)));
   });
   return result;
+}
+
+/**
+ * True once the one field that matters for a safe silent import — company name —
+ * is resolved. website_url is a bonus match, not a requirement: most Merk
+ * exports don't carry it, and its absence says nothing about mapping confidence.
+ */
+export function isMappingConfident(headers: string[]): boolean {
+  const mapping = guessMapping(headers);
+  return mapping.company_name >= 0;
 }
 
 function pad(n: number) {

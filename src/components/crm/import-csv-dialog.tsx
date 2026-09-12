@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FIELD_LABELS, guessMapping, parseCsv, type LeadField } from "@/lib/leads";
+import { FIELD_LABELS, guessMapping, isMappingConfident, parseCsv, type LeadField } from "@/lib/leads";
 
 export type ImportRow = Record<LeadField, string>;
 export type DuplicateMode = "skip" | "update";
@@ -27,7 +27,7 @@ export function ImportCsvDialog({
   onImport,
   existingNames,
 }: {
-  onImport: (rows: ImportRow[], mode: DuplicateMode) => Promise<void>;
+  onImport: (rows: ImportRow[], mode: DuplicateMode) => Promise<{ insertedIds: string[] } | void>;
   existingNames: string[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -41,6 +41,25 @@ export function ImportCsvDialog({
   const [dupMode, setDupMode] = useState<DuplicateMode>("skip");
   const [busy, setBusy] = useState(false);
 
+  const buildRows = (body: string[][], map: Record<LeadField, number>): ImportRow[] =>
+    body.map((r) => {
+      const out = {} as ImportRow;
+      FIELD_LABELS.forEach(({ key }) => {
+        const idx = map[key];
+        out[key] = idx >= 0 && r[idx] ? r[idx].trim() : "";
+      });
+      return out;
+    });
+
+  const runAutoImport = async (body: string[][], map: Record<LeadField, number>) => {
+    const usable = buildRows(body, map).filter((r) => Object.values(r).some((v) => v.trim() !== ""));
+    if (usable.length === 0) {
+      toast.error("V CSV se nenašla žádná použitelná data.");
+      return;
+    }
+    await onImport(usable, "skip");
+  };
+
   const handleFile = async (file: File) => {
     const text = await file.text();
     const parsed = parseCsv(text);
@@ -49,24 +68,24 @@ export function ImportCsvDialog({
       return;
     }
     const head = parsed[0];
+    const body = parsed.slice(1);
+    const guessed = guessMapping(head);
+
+    if (isMappingConfident(head)) {
+      await runAutoImport(body, guessed);
+      return;
+    }
+
     setHeaders(head);
-    setRows(parsed.slice(1));
-    setMapping(guessMapping(head));
+    setRows(body);
+    setMapping(guessed);
     setHasHeader(true);
     setOpen(true);
   };
 
   const dataRows = hasHeader ? rows : [headers, ...rows];
 
-  const mapRows = (): ImportRow[] =>
-    dataRows.map((r) => {
-      const out = {} as ImportRow;
-      FIELD_LABELS.forEach(({ key }) => {
-        const idx = mapping[key];
-        out[key] = idx >= 0 && r[idx] ? r[idx].trim() : "";
-      });
-      return out;
-    });
+  const mapRows = (): ImportRow[] => buildRows(dataRows, mapping);
 
   const existing = new Set(existingNames.map((n) => n.trim().toLowerCase()).filter(Boolean));
   const preview = mapRows().filter((r) => Object.values(r).some((v) => v.trim() !== ""));
